@@ -16,73 +16,75 @@
 
 /* global Map */
 
-import 'pepjs';
-import glContext from 'gl-context';
-import vkey from 'vkey';
-import getUserMedia from 'getusermedia/index-browser';
-import analyser from 'web-audio-analyser';
-import throttle from 'lodash/throttle';
-import mapRange from 'range-fit';
-import clamp from 'clamp';
-import { mat3, vec2 } from 'gl-matrix';
-import querystring from 'querystring';
-import shader from 'gl-shader';
-import prefixes from 'prefixes';
+import "pepjs";
+import glContext from "gl-context";
+import vkey from "vkey";
+import getUserMedia from "getusermedia/index-browser";
+import analyser from "web-audio-analyser";
+import throttle from "lodash/throttle";
+import mapRange from "range-fit";
+import clamp from "clamp";
+import { mat3, vec2 } from "gl-matrix";
+import querystring from "querystring";
+import shader from "gl-shader";
+import prefixes from "prefixes";
 
 // import dat from 'dat-gui';
-import dat from '../libs/dat.gui/build/dat.gui';
+import dat from "../libs/dat.gui/build/dat.gui";
 
-import { rootPath } from './utils/';
-import redirect from './utils/protocol-redirect';
+import { rootPath } from "./utils/";
+import redirect from "./utils/protocol-redirect";
 
-import Timer from './timer';
+import Timer from "./timer";
 
-import { Tendrils, defaults, glSettings } from './';
+import { Tendrils, defaults, glSettings } from "./";
 
-import * as spawnPixels from './spawn/pixels';
-import pixelsFrag from './spawn/pixels/index.frag';
-import bestSampleFrag from './spawn/pixels/best-sample.frag';
-import flowSampleFrag from './spawn/pixels/flow-sample.frag';
-import dataSampleFrag from './spawn/pixels/data-sample.frag';
+import * as spawnPixels from "./spawn/pixels";
+import pixelsFrag from "./spawn/pixels/index.frag";
+import bestSampleFrag from "./spawn/pixels/best-sample.frag";
+import flowSampleFrag from "./spawn/pixels/flow-sample.frag";
+import dataSampleFrag from "./spawn/pixels/data-sample.frag";
 
-import spawnReset from './spawn/ball';
-import GeometrySpawner from './spawn/geometry';
+import spawnReset from "./spawn/ball";
+import GeometrySpawner from "./spawn/geometry";
 
-import AudioTrigger from './audio';
-import AudioTexture from './audio/data-texture';
-import { peak, meanWeight } from './analyse';
+import AudioTrigger from "./audio";
+import AudioTexture from "./audio/data-texture";
+import { peak, meanWeight } from "./analyse";
 
-import FlowLines from './flow-line/multi';
+import FlowLines from "./flow-line/multi";
 
-import Player from './animate';
+import Player from "./animate";
 
-import Screen from './screen';
-import Blend from './screen/blend';
-import screenVert from './screen/index.vert';
-import blurFrag from './screen/blur.frag';
-import OpticalFlow from './optical-flow';
+import Screen from "./screen";
+import Blend from "./screen/blend";
+import screenVert from "./screen/index.vert";
+import blurFrag from "./screen/blur.frag";
+import OpticalFlow from "./optical-flow";
 
-import { curry } from './fp/partial';
-import reduce from './fp/reduce';
-import map from './fp/map';
-import each from './fp/each';
+import { curry } from "./fp/partial";
+import reduce from "./fp/reduce";
+import map from "./fp/map";
+import each from "./fp/each";
 
 export default (canvas, options) => {
-  if(redirect()) { return; }
+  if (redirect()) {
+    return;
+  }
 
-  const settings = Object.assign(querystring.parse(location.search.slice(1)),
-    options);
+  const settings = Object.assign(
+    querystring.parse(location.search.slice(1)),
+    options,
+  );
 
   const defaultSettings = defaults();
   const defaultState = defaultSettings.state;
-
 
   // Main init
 
   const gl = glContext(canvas, glSettings, render);
 
   const timer = { app: defaultSettings.timer, track: new Timer(0) };
-
 
   // Tendrils init
 
@@ -100,7 +102,6 @@ export default (canvas, options) => {
   const resetSpawner = spawnReset(gl);
 
   resetSpawner.shader.bind();
-
 
   // Some convenient shorthands
 
@@ -123,50 +124,58 @@ export default (canvas, options) => {
   const state = tendrils.state;
 
   const appSettings = {
-    trackURL: (((''+settings.track).match(/(false|undefined)/gi))? ''
-      : decodeURIComponent(settings.track)),
+    trackURL: ("" + settings.track).match(/(false|undefined)/gi)
+      ? ""
+      : decodeURIComponent(settings.track),
 
-    animate: (''+settings.animate === 'true'),
-    editorKeys: (''+settings.editor_keys === 'true'),
+    animate: "" + settings.animate === "true",
+    editorKeys: "" + settings.editor_keys === "true",
 
-    useMedia: (''+settings.use_media !== 'false'),
-    useCamera: (''+settings.use_camera !== 'false'),
-    useMic: (''+settings.use_mic !== 'false'),
+    useMedia: "" + settings.use_media !== "false",
+    useCamera: "" + settings.use_camera !== "false",
+    useMic: "" + settings.use_mic !== "false",
 
-    flipVideoX: (''+settings.flip_video_x === 'true'),
-    flipVideoY: (''+settings.flip_video_y === 'true'),
+    flipVideoX: "" + settings.flip_video_x === "true",
+    flipVideoY: "" + settings.flip_video_y === "true",
 
-    loopTime: Math.max(0,
-      parseInt((settings.loop_time || 10*60*10e2), 10) || 0),
+    loopTime: Math.max(
+      0,
+      parseInt(settings.loop_time || 10 * 60 * 10e2, 10) || 0,
+    ),
 
-    loopPresets: Math.max(0,
+    loopPresets: Math.max(
+      0,
       // parseInt((settings.loop_presets || 3*60*10e2), 10) || 0),
-      parseInt((settings.loop_presets || 0), 10) || 0),
+      parseInt(settings.loop_presets || 0, 10) || 0,
+    ),
 
-    pointerFlow: (''+settings.pointer_flow !== 'false'),
+    pointerFlow: "" + settings.pointer_flow !== "false",
 
-    staticImage: (((''+settings.static_image) === 'false')? ''
-      : (decodeURIComponent(settings.static_image || '') ||
-          rootPath+'images/ringed-dot/w-b.png'))
-          // rootPath+'images/epok/eye.png'))
-          // rootPath+'images/fortune.png'))
-          // rootPath+'images/unit31-unfolded.jpg'))
-          // rootPath+'images/hysteria-kinetic-bliss-poster.jpeg'))
-          // rootPath+'images/hysteria-kinetic-bliss-logo.png'))
+    staticImage:
+      "" + settings.static_image === "false"
+        ? ""
+        : decodeURIComponent(settings.static_image || "") ||
+          rootPath + "images/ringed-dot/w-b.png",
+    // rootPath+'images/epok/eye.png'))
+    // rootPath+'images/fortune.png'))
+    // rootPath+'images/unit31-unfolded.jpg'))
+    // rootPath+'images/hysteria-kinetic-bliss-poster.jpeg'))
+    // rootPath+'images/hysteria-kinetic-bliss-logo.png'))
   };
 
-  Object.assign(timer.app,
-    { end: appSettings.loopTime, loop: !!appSettings.loopTime });
+  Object.assign(timer.app, {
+    end: appSettings.loopTime,
+    loop: !!appSettings.loopTime,
+  });
 
-  (''+settings.cursor === 'false') && canvas.classList.add('epok-no-cursor');
-
+  "" + settings.cursor === "false" && canvas.classList.add("epok-no-cursor");
 
   // Audio init
 
   const audioDefaults = {
-    audible: (''+settings.mute !== 'true'),
+    audible: "" + settings.mute !== "true",
 
-    track: parseFloat((settings.track_in || 1), 10),
+    track: parseFloat(settings.track_in || 1, 10),
     trackFlowAt: 0.2, // 1.15,
     trackFastAt: 0.03, // 0.12,
     trackFormAt: 0.015, // 0.06,
@@ -174,15 +183,15 @@ export default (canvas, options) => {
     trackCamAt: 0.002, // 0.008,
     trackSpawnAt: 0.045, // 0.18,
 
-    mic: parseFloat((settings.mic_in || 1), 10),
-    ...((''+settings.mic_track !== 'true')?
-        {
+    mic: parseFloat(settings.mic_in || 1, 10),
+    ...("" + settings.mic_track !== "true"
+      ? {
           micFlowAt: 0.5,
           micFastAt: 0.8,
           micFormAt: 0.5,
           micSampleAt: 0.74,
           micCamAt: 0.06,
-          micSpawnAt: 0.09
+          micSpawnAt: 0.09,
         }
       : {
           // Should be the same as track above... but the input values seem to
@@ -193,17 +202,18 @@ export default (canvas, options) => {
           micFormAt: 0.015, // 0.06,
           micSampleAt: 0.035, // 0.12,
           micCamAt: 0.002, // 0.008,
-          micSpawnAt: 0.045 // 0.18
-        })
+          micSpawnAt: 0.045, // 0.18
+        }),
   };
-
 
   // Track
 
-  const track = Object.assign(new Audio(),
-    { crossOrigin: 'anonymous', className: 'epok-track' });
+  const track = Object.assign(new Audio(), {
+    crossOrigin: "anonymous",
+    className: "epok-track",
+  });
 
-  track.appendChild(document.createElement('source'));
+  track.appendChild(document.createElement("source"));
 
   const audioContext = new (self.AudioContext || self.webkitAudioContext)();
 
@@ -211,89 +221,98 @@ export default (canvas, options) => {
   // @see [Google developers](https://developers.google.com/web/updates/2017/09/autoplay-policy-changes#webaudio)
   // @see [SO](https://stackoverflow.com/a/50480115)
   const restartAudio = () =>
-    (audioContext.state === 'suspended') &&
-      audioContext.resume().then(() => console.log('Restarted audio'));
+    audioContext.state === "suspended" &&
+    audioContext.resume().then(() => console.log("Restarted audio"));
 
-  addEventListener('change', restartAudio);
-  addEventListener('click', restartAudio);
-  addEventListener('contextmenu', restartAudio);
-  addEventListener('dblclick', restartAudio);
-  addEventListener('mouseup', restartAudio);
-  addEventListener('pointerup', restartAudio);
-  addEventListener('reset', restartAudio);
-  addEventListener('submit', restartAudio);
-  addEventListener('touchend', restartAudio);
+  addEventListener("change", restartAudio);
+  addEventListener("click", restartAudio);
+  addEventListener("contextmenu", restartAudio);
+  addEventListener("dblclick", restartAudio);
+  addEventListener("mouseup", restartAudio);
+  addEventListener("pointerup", restartAudio);
+  addEventListener("reset", restartAudio);
+  addEventListener("submit", restartAudio);
+  addEventListener("touchend", restartAudio);
 
   // Track control setup
 
-  const trackControls = document.querySelector('.epok-audio-controls');
+  const trackControls = document.querySelector(".epok-audio-controls");
 
-  const trackControl = (trackControls && {
+  const trackControl = trackControls && {
     els: {
       main: trackControls,
-      toggle: trackControls.querySelector('.epok-play-toggle'),
-      progress: trackControls.querySelector('.epok-progress'),
-      current: trackControls.querySelector('.epok-current'),
-      total: trackControls.querySelector('.epok-total')
+      toggle: trackControls.querySelector(".epok-play-toggle"),
+      progress: trackControls.querySelector(".epok-progress"),
+      current: trackControls.querySelector(".epok-current"),
+      total: trackControls.querySelector(".epok-total"),
     },
     times: { current: new Date(0), total: new Date(0) },
-    timeFormat: { second: 'numeric' },
+    timeFormat: { second: "numeric" },
     seeking: false,
 
     trackTimeChanged() {
       const { progress: $p, current: $c, total: $t } = trackControl.els;
-      const total = track.duration*1e3;
+      const total = track.duration * 1e3;
 
       $p && ($p.max = track.duration);
 
       trackControl.times.total.setTime(total);
 
-      trackControl.timeFormat.minute = ((total >= 60*1e3)?
-        'numeric' : undefined);
+      trackControl.timeFormat.minute =
+        total >= 60 * 1e3 ? "numeric" : undefined;
 
-      trackControl.timeFormat.hour = ((total >= 60*60*1e3)?
-        'numeric' : undefined);
+      trackControl.timeFormat.hour =
+        total >= 60 * 60 * 1e3 ? "numeric" : undefined;
 
       $c && ($c.innerText = 0);
 
-      $t && ($t.innerText = trackControl.times.total
-        .toLocaleTimeString('en-gb', trackControl.timeFormat));
+      $t &&
+        ($t.innerText = trackControl.times.total.toLocaleTimeString(
+          "en-gb",
+          trackControl.timeFormat,
+        ));
     },
     tick(time, paused) {
       const { toggle: $t, progress: $p, current: $c } = trackControl.els;
 
       trackControl.times.current.setTime(time);
 
-      $c && ($c.innerText = trackControl.times.current
-        .toLocaleTimeString('en-gb', trackControl.timeFormat));
+      $c &&
+        ($c.innerText = trackControl.times.current.toLocaleTimeString(
+          "en-gb",
+          trackControl.timeFormat,
+        ));
 
-      $p && !trackControl.seeking && ($p.value = time*1e-3);
+      $p && !trackControl.seeking && ($p.value = time * 1e-3);
       $t && ($t.checked = !paused);
-    }
-  });
+    },
+  };
 
-  const toggleTrack = () => ((track.paused)? track.play() : track.pause());
+  const toggleTrack = () => (track.paused ? track.play() : track.pause());
 
-  if(trackControl) {
+  if (trackControl) {
     const { main: $m, toggle: $t, progress: $p } = trackControl.els;
 
-    if($m) {
+    if ($m) {
       $m.parentElement.removeChild($m);
       $m.appendChild(track);
-      $m.classList.add('epok-show');
+      $m.classList.add("epok-show");
     }
 
-    track.addEventListener('durationchange', trackControl.trackTimeChanged);
+    track.addEventListener("durationchange", trackControl.trackTimeChanged);
 
-    $t && $t.addEventListener('change', () =>
-      (($t.checked)? track.play() : track.pause()));
+    $t &&
+      $t.addEventListener("change", () =>
+        $t.checked ? track.play() : track.pause(),
+      );
 
-    if($p) {
-      $p.addEventListener('pointerdown', () =>
-        trackControl.seeking = true);
+    if ($p) {
+      $p.addEventListener("pointerdown", () => (trackControl.seeking = true));
 
-      $p.addEventListener('change', () => {
-        if(!trackControl.seeking) { return; }
+      $p.addEventListener("change", () => {
+        if (!trackControl.seeking) {
+          return;
+        }
 
         track.currentTime = $p.value;
         trackControl.seeking = false;
@@ -301,14 +320,13 @@ export default (canvas, options) => {
     }
   }
 
-
   // Analyser setup
 
   // Convenience to mix in some things on top of the standard analyser setup.
   function makeAnalyser(...rest) {
     const a = analyser(...rest);
-    const gain = a.gain = a.ctx.createGain();
-    const out = (a.splitter || a.analyser);
+    const gain = (a.gain = a.ctx.createGain());
+    const out = a.splitter || a.analyser;
 
     a.source.disconnect();
     a.source.connect(gain).connect(out);
@@ -321,35 +339,34 @@ export default (canvas, options) => {
   // @todo Stereo - creates 2 separate analysers for each channel.
   // @todo Delay node to compensate for wait in analysing values?
 
-  const trackAnalyser = makeAnalyser(track, audioContext,
-    { audible: audioState.audible });
+  const trackAnalyser = makeAnalyser(track, audioContext, {
+    audible: audioState.audible,
+  });
 
   trackAnalyser.analyser.fftSize = Math.pow(2, 8);
 
   const trackTrigger = new AudioTrigger(trackAnalyser, 4);
 
-
   // Mic refs
   let micAnalyser;
   let micTrigger;
 
-
   // Track setup
 
   const setupTrack = (src, el = canvas.parentElement, onWindow = false) => {
-    const $src = track.querySelector('source');
+    const $src = track.querySelector("source");
 
-    if((track.src !== src) || ($src.src !== src)) {
+    if (track.src !== src || $src.src !== src) {
       track.src = $src.src = src;
       track.currentTime = 0;
     }
 
-    if(trackControl) {
+    if (trackControl) {
       const main = trackControl.els.main;
 
-      if(main) {
-        (main.parentElement !== el) && el.appendChild(main);
-        main.classList[((onWindow)? 'add' : 'remove')]('epok-on-window');
+      if (main) {
+        main.parentElement !== el && el.appendChild(main);
+        main.classList[onWindow ? "add" : "remove"]("epok-on-window");
       }
     }
 
@@ -362,33 +379,32 @@ export default (canvas, options) => {
   setupTrackURL();
 
   function toggleAudible(to) {
-    const out = (trackAnalyser.merger || trackAnalyser.analyser);
+    const out = trackAnalyser.merger || trackAnalyser.analyser;
 
-    return ((to)? out.connect(trackAnalyser.ctx.destination)
-      : out.disconnect());
+    return to ? out.connect(trackAnalyser.ctx.destination) : out.disconnect();
   }
-
 
   // Flow inputs
 
   const flowInputs = new FlowLines(gl);
 
   const pointerFlow = (e) => {
-    if(appSettings.pointerFlow) {
+    if (appSettings.pointerFlow) {
       const { clientX = 0, clientY = 0, pointerId } = e;
       const { left, top } = canvas.getBoundingClientRect();
       const { viewRes } = tendrils;
 
-      const p = vec2.fromValues(mapRange(clientX-left, 0, viewRes[0], -1, 1),
-        mapRange(clientY-top, 0, viewRes[1], 1, -1));
+      const p = vec2.fromValues(
+        mapRange(clientX - left, 0, viewRes[0], -1, 1),
+        mapRange(clientY - top, 0, viewRes[1], 1, -1),
+      );
 
       flowInputs.get(pointerId).add(timer.app.time, p);
       e.preventDefault();
     }
   };
 
-  canvas.addEventListener('pointermove', pointerFlow, false);
-
+  canvas.addEventListener("pointermove", pointerFlow, false);
 
   // Spwan feedback loop from flow
   /**
@@ -397,37 +413,39 @@ export default (canvas, options) => {
    */
 
   const flowPixelSpawner = new spawnPixels.PixelSpawner(gl, {
-      shader: [spawnPixels.defaults().shader[0], flowSampleFrag],
-      buffer: tendrils.flow
-    });
+    shader: [spawnPixels.defaults().shader[0], flowSampleFrag],
+    buffer: tendrils.flow,
+  });
 
   const flowPixelScales = {
-    'normal': [1, -1],
+    normal: [1, -1],
     // This flips the lookup, which is interesting (reflection)
-    'mirror x': [-1, -1],
-    'mirror y': [1, 1],
-    'mirror xy': [-1, 1],
+    "mirror x": [-1, -1],
+    "mirror y": [1, 1],
+    "mirror xy": [-1, 1],
   };
 
   const flowPixelDefaults = {
-    scale: 'normal'
+    scale: "normal",
   };
 
   const flowPixelState = { ...flowPixelDefaults };
 
   function spawnFlow(buffer = spawnTargets.spawnFlow) {
-    vec2.div(flowPixelSpawner.spawnSize,
-      flowPixelScales[flowPixelState.scale], tendrils.viewSize);
+    vec2.div(
+      flowPixelSpawner.spawnSize,
+      flowPixelScales[flowPixelState.scale],
+      tendrils.viewSize,
+    );
 
     flowPixelSpawner.spawn(tendrils, undefined, buffer);
   }
-
 
   // Spawn on fastest particles.
 
   const simplePixelSpawner = new spawnPixels.PixelSpawner(gl, {
     shader: [spawnPixels.defaults().shader[0], dataSampleFrag],
-    buffer: null
+    buffer: null,
   });
 
   function spawnFastest(buffer = spawnTargets.spawnFastest) {
@@ -436,53 +454,59 @@ export default (canvas, options) => {
     simplePixelSpawner.spawn(tendrils, undefined, buffer);
   }
 
-
   // Respawn from geometry (platonic forms)
 
-  const geometrySpawner = new GeometrySpawner(gl,
-    { speed: 0.005, bias: 1e2/5e-3 });
+  const geometrySpawner = new GeometrySpawner(gl, {
+    speed: 0.005,
+    bias: 1e2 / 5e-3,
+  });
 
   const spawnForm = (buffer = spawnTargets.spawnForm) =>
     geometrySpawner.shuffle().spawn(tendrils, undefined, buffer);
-
 
   // Media - cam and mic
 
   const imageShaders = {
     direct: shader(gl, spawnPixels.defaults().shader[0], pixelsFrag),
-    sample: shader(gl, spawnPixels.defaults().shader[0], bestSampleFrag)
+    sample: shader(gl, spawnPixels.defaults().shader[0], bestSampleFrag),
   };
 
   const imageSpawner = new spawnPixels.PixelSpawner(gl, { shader: null });
 
-  mat3.scale(imageSpawner.spawnMatrix,
-    mat3.identity(imageSpawner.spawnMatrix), [-1, 1]);
+  mat3.scale(
+    imageSpawner.spawnMatrix,
+    mat3.identity(imageSpawner.spawnMatrix),
+    [-1, 1],
+  );
 
   const rasterShape = { image: [0, 0], video: [0, 0] };
 
-  const video = Object.assign(document.createElement('video'),
-    { controls: true, muted: true, autoplay: false });
+  const video = Object.assign(document.createElement("video"), {
+    controls: true,
+    muted: true,
+    autoplay: false,
+  });
 
-  const videoCanvas = document.createElement('canvas');
-  const videoContext = videoCanvas.getContext('2d');
+  const videoCanvas = document.createElement("canvas");
+  const videoContext = videoCanvas.getContext("2d");
 
-  video.addEventListener('canplay', () => {
+  video.addEventListener("canplay", () => {
     rasterShape.video = [video.videoWidth, video.videoHeight];
     video.play();
   });
 
-
   const image = new Image();
 
-  image.crossOrigin = 'anonymous';
+  image.crossOrigin = "anonymous";
 
-  const setupImage = (src = appSettings.staticImage) => image.src = src;
+  const setupImage = (src = appSettings.staticImage) => (image.src = src);
 
   setupImage();
 
-  image.addEventListener('load',
-    () => rasterShape.image = [image.width, image.height]);
-
+  image.addEventListener(
+    "load",
+    () => (rasterShape.image = [image.width, image.height]),
+  );
 
   function spawnRaster(shader, speed, buffer) {
     imageSpawner.shader = shader;
@@ -491,17 +515,18 @@ export default (canvas, options) => {
     let shape = rasterShape.image;
     let raster = image;
 
-    if(appSettings.useMedia && appSettings.useCamera && video) {
+    if (appSettings.useMedia && appSettings.useCamera && video) {
       shape = rasterShape.video;
       raster = videoCanvas;
     }
 
-    if(Math.min(...shape) > 0) {
+    if (Math.min(...shape) > 0) {
       imageSpawner.buffer.shape = tendrils.colorMap.shape = shape;
       imageSpawner.setPixels(raster);
       imageSpawner.spawn(tendrils, undefined, buffer);
+    } else {
+      console.warn("`spawnRaster`: image not ready.", raster);
     }
-    else { console.warn('`spawnRaster`: image not ready.', raster); }
   }
 
   const spawnImage = (buffer = spawnTargets.spawnImage) =>
@@ -516,28 +541,28 @@ export default (canvas, options) => {
     spawnImage(null);
   }
 
-
   // Optical flow
 
   const opticalFlow = new OpticalFlow(gl, undefined, {
     speed: parseFloat(settings.optical_speed || 0.08, 10),
     offset: 0.1,
-    scaleUV: [-1, -1]
+    scaleUV: [-1, -1],
   });
 
   const opticalFlowState = {
     speed: opticalFlow.uniforms.speed,
     lambda: opticalFlow.uniforms.lambda,
-    offset: opticalFlow.uniforms.offset
+    offset: opticalFlow.uniforms.offset,
   };
 
   const opticalFlowDefaults = { ...opticalFlowState };
 
-
   // Color map blending
 
-  const trackTexture = new AudioTexture(gl,
-    trackAnalyser.analyser.frequencyBinCount);
+  const trackTexture = new AudioTexture(
+    gl,
+    trackAnalyser.analyser.frequencyBinCount,
+  );
 
   // We'll swap in the mic texture if/when it's created.
   let micTexture = null;
@@ -545,74 +570,101 @@ export default (canvas, options) => {
   const blendMap = {
     mic: trackTexture.texture,
     track: trackTexture.texture,
-    video: opticalFlow.buffers[0]
+    video: opticalFlow.buffers[0],
   };
 
   const blendKeys = Object.keys(blendMap);
 
   const blend = new Blend(gl, {
     views: Object.values(blendMap),
-    alphas: [0.1, 0.3, 0.8]
+    alphas: [0.1, 0.3, 0.8],
   });
 
+  // Media elements
+  const videoElement = document.createElement("video");
+  const audioElement = document.createElement("audio");
+
+  // Load video and audio files
+  const loadMedia = async (videoUrl, audioUrl) => {
+    videoElement.src = videoUrl;
+    videoElement.crossOrigin = "anonymous";
+    videoElement.loop = true;
+    videoElement.muted = true;
+
+    audioElement.src = audioUrl;
+    audioElement.crossOrigin = "anonymous";
+    audioElement.loop = true;
+
+    await Promise.all([videoElement.play(), audioElement.play()]);
+  };
 
   // Media access
-
   let mediaStream;
 
-  const getMedia = () => new Promise((y, n) => {
-    const { useCamera, useMic } = appSettings;
+  const getMedia = () =>
+    new Promise((resolve, reject) => {
+      const { useCamera, useMic } = appSettings;
 
-    appSettings.useMedia = true;
+      appSettings.useMedia = true;
 
-    getUserMedia({ video: useCamera, audio: useMic }, (e, stream) => {
-      try {
-        if(e) { throw e; }
+      loadMedia("/assets/deam-continuum.mp4", "/assets/pengshui-omen-remix.mp3")
+        .then(() => {
+          const { useCamera, useMic } = appSettings;
 
-        const { useCamera, useMic } = appSettings;
+          if (!useCamera && !useMic) {
+            return;
+          }
 
-        if(!useCamera && !useMic) { return; }
+          if (useCamera) {
+            // Use the video element as a source
+            "srcObject" in video
+              ? (video.srcObject = videoElement)
+              : (video.src = URL.createObjectURL(videoElement));
+          }
 
-        mediaStream = stream;
+          if (useMic) {
+            const audioContext = new (window.AudioContext ||
+              window.webkitAudioContext)();
+            const source = audioContext.createMediaElementSource(audioElement);
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = Math.pow(2, 8);
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
 
-        useCamera &&
-          (('srcObject' in video)? video.srcObject = stream
-          : video.src = URL.createObjectURL(stream));
+            micTexture = new AudioTexture(gl, analyser.frequencyBinCount);
+            blend.views[blendKeys.indexOf("mic")] = micTexture.texture;
+          }
 
-        if(useMic) {
-          const { analyser } = micAnalyser = (micAnalyser ||
-            makeAnalyser(stream, audioContext, { audible: false }));
-
-          analyser.fftSize = Math.pow(2, 8);
-          micTrigger = (micTrigger || new AudioTrigger(micAnalyser, 4));
-          micTexture = new AudioTexture(gl, analyser.frequencyBinCount);
-          blend.views[blendKeys.indexOf('mic')] = micTexture.texture;
-        }
-
-        y();
-      }
-      catch(e) {
-        console.warn(e);
-
-        return n(e);
-      }
+          resolve();
+        })
+        .catch((error) => {
+          console.warn(error);
+          reject(error);
+        });
     });
-  });
+
+  // Example usage
+  getMedia()
+    .then(() => {
+      console.log("Media loaded successfully");
+    })
+    .catch((error) => {
+      console.error("Error loading media:", error);
+    });
 
   function stopMedia(stream = mediaStream) {
     appSettings.useMedia = false;
-    (stream && each((track) => track.stop(), stream.getTracks()));
+    stream && each((track) => track.stop(), stream.getTracks());
     micTexture = null;
-    blend.views[blendKeys.indexOf('mic')] = trackTexture.texture;
+    blend.views[blendKeys.indexOf("mic")] = trackTexture.texture;
 
     return video.pause();
   }
 
   const toggleMedia = (toggle = !appSettings.useMedia) =>
-    ((toggle)? getMedia : stopMedia)();
+    (toggle ? getMedia : stopMedia)();
 
   appSettings.useMedia && getMedia();
-
 
   // Audio `react` and `test` function pairs - for `AudioTrigger.fire`
   /**
@@ -628,139 +680,178 @@ export default (canvas, options) => {
   const audioCache = new Map();
 
   const audioFirer = (threshold, key, test) => (trigger) => {
-      const t = threshold();
+    const t = threshold();
 
-      if(t) {
-        const cached = audioCache.get(key);
+    if (t) {
+      const cached = audioCache.get(key);
 
-        if(cached) { return cached; }
-        else {
-          const value = test(trigger, t);
+      if (cached) {
+        return cached;
+      } else {
+        const value = test(trigger, t);
 
-          audioCache.set(key, value);
+        audioCache.set(key, value);
 
-          return value;
-        }
+        return value;
       }
-      else { return t; }
-    };
+    } else {
+      return t;
+    }
+  };
 
   const trackFires = [
     [
       () => spawnFlow(),
-      audioFirer(() => audioState.trackFlowAt,
-        'trackFlowAt | Low end - velocity | meanWeight(track, 1, 0.25)',
-        (trigger, t) => meanWeight(trigger.dataOrder(1), 0.25) > t)
+      audioFirer(
+        () => audioState.trackFlowAt,
+        "trackFlowAt | Low end - velocity | meanWeight(track, 1, 0.25)",
+        (trigger, t) => meanWeight(trigger.dataOrder(1), 0.25) > t,
+      ),
     ],
     [
       () => spawnFastest(),
-      audioFirer(() => audioState.trackFastAt,
-        'trackFastAt | High end - acceleration | meanWeight(track, 2, 0.8)',
-        (trigger, t) => meanWeight(trigger.dataOrder(2), 0.8) > t)
+      audioFirer(
+        () => audioState.trackFastAt,
+        "trackFastAt | High end - acceleration | meanWeight(track, 2, 0.8)",
+        (trigger, t) => meanWeight(trigger.dataOrder(2), 0.8) > t,
+      ),
     ],
     [
       () => spawnForm(),
-      audioFirer(() => audioState.trackFormAt,
-        'trackFormAt | Sudden click/hit - force/attack | abs(peak(track, 3))',
-        (trigger, t) => Math.abs(peak(trigger.dataOrder(3))) > t)
+      audioFirer(
+        () => audioState.trackFormAt,
+        "trackFormAt | Sudden click/hit - force/attack | abs(peak(track, 3))",
+        (trigger, t) => Math.abs(peak(trigger.dataOrder(3))) > t,
+      ),
     ],
     [
       () => spawnSamples(),
-      audioFirer(() => audioState.trackSampleAt,
-        'trackSampleAt | Low end - acceleration | meanWeight(track, 2, 0.25)',
-        (trigger, t) => meanWeight(trigger.dataOrder(2), 0.25) > t)
+      audioFirer(
+        () => audioState.trackSampleAt,
+        "trackSampleAt | Low end - acceleration | meanWeight(track, 2, 0.25)",
+        (trigger, t) => meanWeight(trigger.dataOrder(2), 0.25) > t,
+      ),
     ],
     [
       () => spawnImageTargets(),
-      audioFirer(() => audioState.trackCamAt,
-        'trackCamAt | Mid - force/attack | meanWeight(track, 3, 0.5)',
-        (trigger, t) => meanWeight(trigger.dataOrder(3), 0.5) > t)
+      audioFirer(
+        () => audioState.trackCamAt,
+        "trackCamAt | Mid - force/attack | meanWeight(track, 3, 0.5)",
+        (trigger, t) => meanWeight(trigger.dataOrder(3), 0.5) > t,
+      ),
     ],
     [
       () => restart(),
-      audioFirer(() => audioState.trackSpawnAt,
-        'trackSpawnAt | Low end - acceleration | meanWeight(track, 3, 0.25)',
-        (trigger, t) => meanWeight(trigger.dataOrder(2), 0.25) > t)
-    ]
+      audioFirer(
+        () => audioState.trackSpawnAt,
+        "trackSpawnAt | Low end - acceleration | meanWeight(track, 3, 0.25)",
+        (trigger, t) => meanWeight(trigger.dataOrder(2), 0.25) > t,
+      ),
+    ],
   ];
 
-  const micFires = ((''+settings.mic_track === 'true')?
-      [
-        [
-          () => spawnFlow(),
-          audioFirer(() => audioState.micFlowAt,
-            'micFlowAt | Low end - velocity | meanWeight(mic, 1, 0.25)',
-            (trigger, t) => meanWeight(trigger.dataOrder(1), 0.25) > t)
-        ],
-        [
-          () => spawnFastest(),
-          audioFirer(() => audioState.micFastAt,
-            'micFastAt | High end - acceleration | meanWeight(mic, 2, 0.8)',
-            (trigger, t) => meanWeight(trigger.dataOrder(2), 0.8) > t)
-        ],
-        [
-          () => spawnForm(),
-          audioFirer(() => audioState.micFormAt,
-            'micFormAt | Sudden click/hit - force/attack | abs(peak(mic, 3))',
-            (trigger, t) => Math.abs(peak(trigger.dataOrder(3))) > t)
-        ],
-        [
-          () => spawnSamples(),
-          audioFirer(() => audioState.micSampleAt,
-            'micSampleAt | Low end - acceleration | meanWeight(mic, 2, 0.25)',
-            (trigger, t) => meanWeight(trigger.dataOrder(2), 0.25) > t)
-        ],
-        [
-          () => spawnImageTargets(),
-          audioFirer(() => audioState.micCamAt,
-            'micCamAt | Mid - force/attack | meanWeight(mic, 3, 0.5)',
-            (trigger, t) => meanWeight(trigger.dataOrder(3), 0.5) > t)
-        ],
-        [
-          () => restart(),
-          audioFirer(() => audioState.micSpawnAt,
-            'micSpawnAt | Low end - acceleration | meanWeight(mic, 3, 0.25)',
-            (trigger, t) => meanWeight(trigger.dataOrder(2), 0.25) > t)
+  const micFires =
+    "" + settings.mic_track === "true"
+      ? [
+          [
+            () => spawnFlow(),
+            audioFirer(
+              () => audioState.micFlowAt,
+              "micFlowAt | Low end - velocity | meanWeight(mic, 1, 0.25)",
+              (trigger, t) => meanWeight(trigger.dataOrder(1), 0.25) > t,
+            ),
+          ],
+          [
+            () => spawnFastest(),
+            audioFirer(
+              () => audioState.micFastAt,
+              "micFastAt | High end - acceleration | meanWeight(mic, 2, 0.8)",
+              (trigger, t) => meanWeight(trigger.dataOrder(2), 0.8) > t,
+            ),
+          ],
+          [
+            () => spawnForm(),
+            audioFirer(
+              () => audioState.micFormAt,
+              "micFormAt | Sudden click/hit - force/attack | abs(peak(mic, 3))",
+              (trigger, t) => Math.abs(peak(trigger.dataOrder(3))) > t,
+            ),
+          ],
+          [
+            () => spawnSamples(),
+            audioFirer(
+              () => audioState.micSampleAt,
+              "micSampleAt | Low end - acceleration | meanWeight(mic, 2, 0.25)",
+              (trigger, t) => meanWeight(trigger.dataOrder(2), 0.25) > t,
+            ),
+          ],
+          [
+            () => spawnImageTargets(),
+            audioFirer(
+              () => audioState.micCamAt,
+              "micCamAt | Mid - force/attack | meanWeight(mic, 3, 0.5)",
+              (trigger, t) => meanWeight(trigger.dataOrder(3), 0.5) > t,
+            ),
+          ],
+          [
+            () => restart(),
+            audioFirer(
+              () => audioState.micSpawnAt,
+              "micSpawnAt | Low end - acceleration | meanWeight(mic, 3, 0.25)",
+              (trigger, t) => meanWeight(trigger.dataOrder(2), 0.25) > t,
+            ),
+          ],
         ]
-      ]
-    : [
-        [
-          () => spawnFlow(),
-          audioFirer(() => audioState.micFlowAt,
-            'micFlowAt | Low end - velocity | meanWeight(mic, 1, 0.3)',
-            (trigger, t) => meanWeight(trigger.dataOrder(1), 0.3) > t)
-        ],
-        [
-          () => spawnFastest(),
-          audioFirer(() => audioState.micFastAt,
-            'micFastAt | High end - velocity | meanWeight(mic, 1, 0.7)',
-            (trigger, t) => meanWeight(trigger.dataOrder(1), 0.7) > t)
-        ],
-        [
-          () => spawnForm(),
-          audioFirer(() => audioState.micFormAt,
-            'micFormAt | Sudden click/hit - acceleration | abs(peak(mic, 2))',
-            (trigger, t) => Math.abs(peak(trigger.dataOrder(2))) > t)
-        ],
-        [
-          () => spawnSamples(),
-          audioFirer(() => audioState.micSampleAt,
-            'micSampleAt | Mid - velocity | meanWeight(mic, 1, 0.4)',
-            (trigger, t) => meanWeight(trigger.dataOrder(1), 0.4) > t)
-        ],
-        [
-          () => spawnImageTargets(),
-          audioFirer(() => audioState.micCamAt,
-            'micCamAt | Mid - acceleration | meanWeight(mic, 2, 0.6)',
-            (trigger, t) => meanWeight(trigger.dataOrder(2), 0.6) > t)
-        ],
-        [
-          () => restart(),
-          audioFirer(() => audioState.micSpawnAt,
-            'micSpawnAt | Low end - acceleration | meanWeight(mic, 2, 0.3)',
-            (trigger, t) => meanWeight(trigger.dataOrder(2), 0.3) > t)
-        ]
-      ]);
+      : [
+          [
+            () => spawnFlow(),
+            audioFirer(
+              () => audioState.micFlowAt,
+              "micFlowAt | Low end - velocity | meanWeight(mic, 1, 0.3)",
+              (trigger, t) => meanWeight(trigger.dataOrder(1), 0.3) > t,
+            ),
+          ],
+          [
+            () => spawnFastest(),
+            audioFirer(
+              () => audioState.micFastAt,
+              "micFastAt | High end - velocity | meanWeight(mic, 1, 0.7)",
+              (trigger, t) => meanWeight(trigger.dataOrder(1), 0.7) > t,
+            ),
+          ],
+          [
+            () => spawnForm(),
+            audioFirer(
+              () => audioState.micFormAt,
+              "micFormAt | Sudden click/hit - acceleration | abs(peak(mic, 2))",
+              (trigger, t) => Math.abs(peak(trigger.dataOrder(2))) > t,
+            ),
+          ],
+          [
+            () => spawnSamples(),
+            audioFirer(
+              () => audioState.micSampleAt,
+              "micSampleAt | Mid - velocity | meanWeight(mic, 1, 0.4)",
+              (trigger, t) => meanWeight(trigger.dataOrder(1), 0.4) > t,
+            ),
+          ],
+          [
+            () => spawnImageTargets(),
+            audioFirer(
+              () => audioState.micCamAt,
+              "micCamAt | Mid - acceleration | meanWeight(mic, 2, 0.6)",
+              (trigger, t) => meanWeight(trigger.dataOrder(2), 0.6) > t,
+            ),
+          ],
+          [
+            () => restart(),
+            audioFirer(
+              () => audioState.micSpawnAt,
+              "micSpawnAt | Low end - acceleration | meanWeight(mic, 2, 0.3)",
+              (trigger, t) => meanWeight(trigger.dataOrder(2), 0.3) > t,
+            ),
+          ],
+        ];
 
   // Returns a function to be executed for each `fire` pair (as above)
   const audioResponder = (trigger) => (fire) => trigger.fire(...fire);
@@ -772,14 +863,16 @@ export default (canvas, options) => {
     // Sequential, and only one at a time, to calm the audio response
     let soundOutput = false;
 
-    if(audioState.track > 0 && !track.paused) {
-      soundOutput = trackFires.some(trackResponder ||
-        (trackResponder = audioResponder(trackTrigger)));
+    if (audioState.track > 0 && !track.paused) {
+      soundOutput = trackFires.some(
+        trackResponder || (trackResponder = audioResponder(trackTrigger)),
+      );
     }
 
-    if(!soundOutput && audioState.mic > 0 && micTrigger) {
-      soundOutput = micFires.some(micResponder ||
-        (micResponder = audioResponder(micTrigger)));
+    if (!soundOutput && audioState.mic > 0 && micTrigger) {
+      soundOutput = micFires.some(
+        micResponder || (micResponder = audioResponder(micTrigger)),
+      );
     }
 
     audioCache.clear();
@@ -787,11 +880,9 @@ export default (canvas, options) => {
     return soundOutput;
   };
 
-
   // Screen effects
 
   const screen = new Screen(gl);
-
 
   // Blur vignette
 
@@ -799,33 +890,31 @@ export default (canvas, options) => {
 
   const blurDefaults = {
     radius: 3,
-    limit: 0.5
+    limit: 0.5,
   };
 
   const blurState = {
     radius: 5,
-    limit: 0.4
+    limit: 0.4,
   };
 
   blurShader.bind();
   Object.assign(blurShader.uniforms, blurState);
 
-
   // Background
 
   function toggleBase(background) {
-    if(!background) {
-      background = ((canvas.classList.contains('epok-dark'))? 'light' : 'dark');
+    if (!background) {
+      background = canvas.classList.contains("epok-dark") ? "light" : "dark";
     }
 
-    canvas.classList.remove('epok-light');
-    canvas.classList.remove('epok-dark');
+    canvas.classList.remove("epok-light");
+    canvas.classList.remove("epok-dark");
 
-    canvas.classList.add('epok-'+background);
+    canvas.classList.add("epok-" + background);
   }
 
-  toggleBase('dark');
-
+  toggleBase("dark");
 
   // Animation setup
 
@@ -843,23 +932,27 @@ export default (canvas, options) => {
     blur: blurState,
     // Just for calls
     // @todo Fix the animation lib properly, not just by convention
-    calls: {}
+    calls: {},
   };
 
   const player = {
     // The main player, tied to the track time
-    track: new Player(map(() => [], tracks, {}), tracks),
+    track: new Player(
+      map(() => [], tracks, {}),
+      tracks,
+    ),
     // A miscellaneous player, time to app time
-    app: new Player({ main: [] }, { main: tendrils.state })
+    app: new Player({ main: [] }, { main: tendrils.state }),
   };
 
   // timer.track.end = player.track.end()+2000;
   // timer.track.loop = true;
 
-  track.addEventListener('seeked',
-    () => (appSettings.animate &&
-      player.track.playFrom(track.currentTime*1000, 0)));
-
+  track.addEventListener(
+    "seeked",
+    () =>
+      appSettings.animate && player.track.playFrom(track.currentTime * 1000, 0),
+  );
 
   // @todo Test sequence - move to own file?
 
@@ -886,7 +979,7 @@ export default (canvas, options) => {
       flowWidth: 5,
 
       speedAlpha: 0.0005,
-      colorMapAlpha: 0.5
+      colorMapAlpha: 0.5,
     },
     tendrils2: {
       noiseWeight: 0.0003,
@@ -901,38 +994,39 @@ export default (canvas, options) => {
     tendrils3: {
       target: 0.000005,
       varyTarget: 1,
-      lineWidth: 1
+      lineWidth: 1,
     },
     baseColor: [0, 0, 0, 0.9],
     flowColor: [1, 1, 1, 0.1],
     fadeColor: [1, 1, 1, 0.05],
     spawn: {
       radius: 0.6,
-      speed: 0.1
+      speed: 0.1,
     },
     opticalFlow: { ...opticalFlowDefaults },
     audio: { ...audioDefaults },
     blend: [0, 0, 1],
     blur: { ...blurState },
-    calls: null
+    calls: null,
   };
 
   // Restart, clean slate; begin with the inert, big bang - flow only
 
   const trackStartTime = 60;
 
-  player.track.tracks.calls.to({
+  player.track.tracks.calls
+    .to({
       call: [() => reset()],
-      time: trackStartTime
+      time: trackStartTime,
     })
     .to({
       call: [
         () => {
           restart();
-          toggleBase('dark');
-        }
+          toggleBase("dark");
+        },
       ],
-      time: 200
+      time: 200,
     });
 
   player.track.apply((track, key) => {
@@ -940,34 +1034,35 @@ export default (canvas, options) => {
 
     track.to({
       to: apply,
-      time: trackStartTime
+      time: trackStartTime,
     });
 
     return { apply };
   });
 
-
   // Intro info
 
   const intro = {
-    togglers: Array.from(document.querySelectorAll('.epok-info-more-button')),
-    more: document.querySelector('.epok-info-more'),
+    togglers: Array.from(document.querySelectorAll(".epok-info-more-button")),
+    more: document.querySelector(".epok-info-more"),
 
     toggle(to) {
       const m = intro.more;
 
-      if(!m) { return; }
+      if (!m) {
+        return;
+      }
 
-      const show = ((typeof to !== 'undefined')? to
-        : mo.classList.contains('epok-hide'));
+      const show =
+        typeof to !== "undefined" ? to : mo.classList.contains("epok-hide");
 
-      mo.classList[(show)? 'remove' : 'add']('epok-hide');
-    }
+      mo.classList[show ? "remove" : "add"]("epok-hide");
+    },
   };
 
   intro.togglers.forEach((moreToggler) =>
-    moreToggler.addEventListener('click', () => intro.toggle()));
-
+    moreToggler.addEventListener("click", () => intro.toggle()),
+  );
 
   // Quality settings
 
@@ -975,22 +1070,24 @@ export default (canvas, options) => {
     options: [
       {
         rootNum: defaultState.rootNum,
-        damping: defaultState.damping
+        damping: defaultState.damping,
       },
       {
-        rootNum: defaultState.rootNum*2,
-        damping: defaultState.damping-0.001
+        rootNum: defaultState.rootNum * 2,
+        damping: defaultState.damping - 0.001,
       },
       {
-        rootNum: defaultState.rootNum*4,
-        damping: defaultState.damping-0.002
-      }
+        rootNum: defaultState.rootNum * 4,
+        damping: defaultState.damping - 0.002,
+      },
     ],
-    level: parseInt((settings.quality ||
-        ((Math.max(window.innerWidth, window.innerHeight) < 800)? 0 : 1)),
-      10),
+    level: parseInt(
+      settings.quality ||
+        (Math.max(window.innerWidth, window.innerHeight) < 800 ? 0 : 1),
+      10,
+    ),
 
-    change(level = (quality.level+1)%quality.options.length) {
+    change(level = (quality.level + 1) % quality.options.length) {
       const settings = quality.options[level];
 
       tendrils.setup(settings.rootNum);
@@ -999,22 +1096,21 @@ export default (canvas, options) => {
 
       quality.level = level;
     },
-    step: () => quality.change()
+    step: () => quality.change(),
   };
 
   quality.change(quality.level);
-
 
   // Fullscreen
 
   // Needs to be called this way because calling the returned function directly is an
   // `Illegal Invocation`
-  const requestFullscreen = prefixes('requestFullscreen', canvas);
+  const requestFullscreen = prefixes("requestFullscreen", canvas);
 
-  const fullscreen = (requestFullscreen && requestFullscreen.name && {
-    request: () => canvas[requestFullscreen.name]()
-  });
-
+  const fullscreen = requestFullscreen &&
+    requestFullscreen.name && {
+      request: () => canvas[requestFullscreen.name](),
+    };
 
   // The main loop
   function render() {
@@ -1022,12 +1118,11 @@ export default (canvas, options) => {
 
     player.app.play(timer.app.time);
 
-    if(track && track.currentTime >= 0) {
-      timer.track.tick(track.currentTime*1000);
+    if (track && track.currentTime >= 0) {
+      timer.track.tick(track.currentTime * 1000);
       appSettings.animate && player.track.play(timer.track.time);
       trackControl && trackControl.tick(timer.track.time, track.paused);
     }
-
 
     // React to sound - from highest reaction to lowest, max one per frame
     /**
@@ -1035,49 +1130,51 @@ export default (canvas, options) => {
      *     something better than this 1D list.
      */
 
-    if(trackTrigger) {
-      (trackTexture &&
-        trackTexture.frequencies(trackTrigger.dataOrder(0)).apply());
+    if (trackTrigger) {
+      trackTexture &&
+        trackTexture.frequencies(trackTrigger.dataOrder(0)).apply();
 
       trackAnalyser.gain.gain
         // So we don't blow any speakers...
-        .linearRampToValueAtTime(clamp(audioState.track, 0, 1),
-          trackAnalyser.ctx.currentTime+0.5);
+        .linearRampToValueAtTime(
+          clamp(audioState.track, 0, 1),
+          trackAnalyser.ctx.currentTime + 0.5,
+        );
 
       trackTrigger.sample(dt);
     }
 
-    if(micTrigger) {
-      (micTexture &&
-        micTexture.frequencies(micTrigger.dataOrder(0)).apply());
+    if (micTrigger) {
+      micTexture && micTexture.frequencies(micTrigger.dataOrder(0)).apply();
 
-      micAnalyser.gain.gain
-        .linearRampToValueAtTime(clamp(audioState.mic, 0, 10000),
-          micAnalyser.ctx.currentTime+0.5);
+      micAnalyser.gain.gain.linearRampToValueAtTime(
+        clamp(audioState.mic, 0, 10000),
+        micAnalyser.ctx.currentTime + 0.5,
+      );
 
       micTrigger.sample(dt);
     }
 
     audioResponse();
 
-
     // Blend everything to be
 
-    const drawVideo = (appSettings.useMedia && appSettings.useCamera &&
-      video.readyState > 1);
+    const drawVideo =
+      appSettings.useMedia && appSettings.useCamera && video.readyState > 1;
 
     // Blend the color maps into tendrils one
     // @todo Only do this if necessary (skip if none or only one has alpha)
 
-    blend.views[blendKeys.indexOf('video')] = ((drawVideo)?
-      opticalFlow.buffers[0] : imageSpawner.buffer);
+    blend.views[blendKeys.indexOf("video")] = drawVideo
+      ? opticalFlow.buffers[0]
+      : imageSpawner.buffer;
 
     blend.draw(tendrils.colorMap);
 
     // The main event
     tendrils.step().draw();
 
-    if(tendrils.buffers.length) {
+    if (tendrils.buffers.length) {
       // Blur to the screen
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -1085,18 +1182,20 @@ export default (canvas, options) => {
 
       blurShader.bind();
 
-      Object.assign(blurShader.uniforms, {
+      Object.assign(
+        blurShader.uniforms,
+        {
           view: tendrils.buffers[0].color[0].bind(1),
           resolution: tendrils.viewRes,
-          time: tendrils.timer.time
+          time: tendrils.timer.time,
         },
-        blurState);
+        blurState,
+      );
 
       screen.render();
 
       tendrils.stepBuffers();
     }
-
 
     // Draw inputs to flow
 
@@ -1104,19 +1203,16 @@ export default (canvas, options) => {
 
     tendrils.flow.bind();
 
-
     // Flow lines
 
-    flowInputs.trim(1/tendrils.state.flowDecay, timer.app.time);
+    flowInputs.trim(1 / tendrils.state.flowDecay, timer.app.time);
 
-    if(appSettings.pointerFlow) {
+    if (appSettings.pointerFlow) {
       each((flowLine) => {
-          Object.assign(flowLine.line.uniforms, tendrils.state);
-          flowLine.update().draw();
-        },
-        flowInputs.active);
+        Object.assign(flowLine.line.uniforms, tendrils.state);
+        flowLine.update().draw();
+      }, flowInputs.active);
     }
-
 
     // Optical flow
 
@@ -1124,28 +1220,32 @@ export default (canvas, options) => {
     // @todo Blur for optical flow? Maybe Sobel as well?
     // @see https://github.com/princemio/ofxMIOFlowGLSL/blob/master/src/ofxMioFlowGLSL.cpp
 
-    if(drawVideo) {
-      if(Math.max(...rasterShape.video) > 0) {
+    if (drawVideo) {
+      if (Math.max(...rasterShape.video) > 0) {
         videoCanvas.width = video.videoWidth;
         videoCanvas.height = video.videoHeight;
 
-        videoContext.translate(((appSettings.flipVideoX)? video.videoWidth : 0),
-          ((appSettings.flipVideoY)? video.videoHeight : 0));
+        videoContext.translate(
+          appSettings.flipVideoX ? video.videoWidth : 0,
+          appSettings.flipVideoY ? video.videoHeight : 0,
+        );
 
-        videoContext.scale(((appSettings.flipVideoX)? -1 : 1),
-          ((appSettings.flipVideoY)? -1 : 1));
+        videoContext.scale(
+          appSettings.flipVideoX ? -1 : 1,
+          appSettings.flipVideoY ? -1 : 1,
+        );
 
         videoContext.drawImage(video, 0, 0);
 
         opticalFlow.resize(rasterShape.video);
         opticalFlow.setPixels(videoCanvas);
 
-        if(opticalFlowState.speed) {
+        if (opticalFlowState.speed) {
           opticalFlow.update({
             speedLimit: state.speedLimit,
             time: timer.app.time,
             viewSize: tendrils.viewSize,
-            ...opticalFlowState
+            ...opticalFlowState,
           });
 
           screen.render();
@@ -1156,7 +1256,6 @@ export default (canvas, options) => {
     }
   }
 
-
   function resize() {
     canvas.width = self.innerWidth;
     canvas.height = self.innerHeight;
@@ -1166,79 +1265,74 @@ export default (canvas, options) => {
 
   // Go
 
-  self.addEventListener('resize', throttle(resize, 200), false);
+  self.addEventListener("resize", throttle(resize, 200), false);
 
   resize();
 
   tendrils.setup();
   respawn();
 
-
   // Control panel
 
   const gui = {
     main: new dat.GUI({ autoPlace: false }),
-    showing: (''+settings.edit === 'true'),
-    toggle: document.querySelector('.epok-editor-button')
+    showing: "" + settings.edit === "true",
+    toggle: document.querySelector(".epok-editor-button"),
   };
 
-  const containGUI = Object.assign(document.createElement('div'), {
-      className: 'epok-edit-controls'
-    });
+  const containGUI = Object.assign(document.createElement("div"), {
+    className: "epok-edit-controls",
+  });
 
   const preventKeyClash = (e) => e.stopPropagation();
 
-  gui.main.domElement.addEventListener('keydown', preventKeyClash);
-  gui.main.domElement.addEventListener('keyup', preventKeyClash);
+  gui.main.domElement.addEventListener("keydown", preventKeyClash);
+  gui.main.domElement.addEventListener("keyup", preventKeyClash);
 
   function updateGUI(node = gui.main) {
-    if(node.__controllers) {
+    if (node.__controllers) {
       node.__controllers.forEach((control) => control.updateDisplay());
     }
 
-    for(let f in node.__folders) {
+    for (let f in node.__folders) {
       updateGUI(node.__folders[f]);
     }
   }
 
   function toggleOpenGUI(open, node = gui.main, cascade = true) {
-    ((open)? node.open() : node.close());
+    open ? node.open() : node.close();
 
-    if(cascade) {
-      for(let f in node.__folders) {
+    if (cascade) {
+      for (let f in node.__folders) {
         toggleOpenGUI(open, node.__folders[f]);
       }
     }
   }
 
   function toggleShowGUI(show = !gui.showing) {
-    containGUI.classList[(show)? 'remove' : 'add']('epok-hide');
+    containGUI.classList[show ? "remove" : "add"]("epok-hide");
     gui.showing = show;
   }
 
-  (gui.toggle &&
-    gui.toggle.addEventListener('click', () => toggleShowGUI()));
+  gui.toggle && gui.toggle.addEventListener("click", () => toggleShowGUI());
 
   // Types of simple properties the GUI can handle with `.add`
   const simpleGUIRegEx = /^(object|array|undefined|null)$/gi;
-
 
   // Info
 
   const proxyGUI = {};
 
-  if(intro.more) {
+  if (intro.more) {
     proxyGUI.info = intro.toggle;
-    gui.main.add(proxyGUI, 'info');
+    gui.main.add(proxyGUI, "info");
   }
-
 
   // Root level
 
   const rootControls = { changeQuality: quality.step };
 
   fullscreen && (rootControls.fullscreen = fullscreen.request);
-
 
   // State, animation, import/export
 
@@ -1248,51 +1342,56 @@ export default (canvas, options) => {
       to,
       call,
       time: timer.track.time,
-      ease: [0, 0.95, 1]
+      ease: [0, 0.95, 1],
     });
 
-  const showExport = ((''+settings.prompt_show !== 'false')?
-      (...rest) => self.prompt(...rest)
-    : (...rest) => console.log(...rest));
+  const showExport =
+    "" + settings.prompt_show !== "false"
+      ? (...rest) => self.prompt(...rest)
+      : (...rest) => console.log(...rest);
 
   Object.assign(rootControls, {
-      showLink: () => showExport('Link:',
-        location.href.replace((location.search || /$/gi),
-          '?'+querystring.encode({
-            ...settings,
-            track: encodeURIComponent(appSettings.trackURL),
-            mute: !audioState.audible,
-            track_in: audioState.track,
-            mic_in: audioState.mic,
-            use_media: appSettings.useMedia,
-            use_camera: appSettings.useCamer,
-            use_mic: appSettings.useMic,
-            animate: appSettings.animate
-          }))),
+    showLink: () =>
+      showExport(
+        "Link:",
+        location.href.replace(
+          location.search || /$/gi,
+          "?" +
+            querystring.encode({
+              ...settings,
+              track: encodeURIComponent(appSettings.trackURL),
+              mute: !audioState.audible,
+              track_in: audioState.track,
+              mic_in: audioState.mic,
+              use_media: appSettings.useMedia,
+              use_camera: appSettings.useCamer,
+              use_mic: appSettings.useMic,
+              animate: appSettings.animate,
+            }),
+        ),
+      ),
 
-      keyframe
-    });
+    keyframe,
+  });
 
-
-  gui.main.add(appSettings, 'trackURL').onFinishChange(setupTrackURL);
-  gui.main.add(appSettings, 'animate');
-  gui.main.add(appSettings, 'useMedia').onFinishChange(toggleMedia);
-  gui.main.add(appSettings, 'staticImage').onFinishChange(() => setupImage());
+  gui.main.add(appSettings, "trackURL").onFinishChange(setupTrackURL);
+  gui.main.add(appSettings, "animate");
+  gui.main.add(appSettings, "useMedia").onFinishChange(toggleMedia);
+  gui.main.add(appSettings, "staticImage").onFinishChange(() => setupImage());
 
   each((f, control) => gui.main.add(rootControls, control), rootControls);
 
-
   // Settings
 
-  gui.settings = gui.main.addFolder('settings');
+  gui.settings = gui.main.addFolder("settings");
 
-  for(let s in state) {
-    if(!(typeof state[s]).match(simpleGUIRegEx)) {
+  for (let s in state) {
+    if (!(typeof state[s]).match(simpleGUIRegEx)) {
       const control = gui.settings.add(state, s);
 
       // Some special cases
 
-      if(s === 'rootNum') {
+      if (s === "rootNum") {
         control.onFinishChange((n) => {
           tendrils.setup(n);
           restart();
@@ -1301,134 +1400,137 @@ export default (canvas, options) => {
     }
   }
 
-
   // DAT.GUI's color controllers are a bit fucked.
 
   const colorDefaults = {
-      baseColor: state.baseColor.slice(0, 3).map((c) => c*255),
-      baseAlpha: state.baseColor[3],
+    baseColor: state.baseColor.slice(0, 3).map((c) => c * 255),
+    baseAlpha: state.baseColor[3],
 
-      flowColor: state.flowColor.slice(0, 3).map((c) => c*255),
-      flowAlpha: state.flowColor[3],
+    flowColor: state.flowColor.slice(0, 3).map((c) => c * 255),
+    flowAlpha: state.flowColor[3],
 
-      fadeColor: state.fadeColor.slice(0, 3).map((c) => c*255),
-      fadeAlpha: state.fadeColor[3]
-    };
+    fadeColor: state.fadeColor.slice(0, 3).map((c) => c * 255),
+    fadeAlpha: state.fadeColor[3],
+  };
 
-  const colorProxy = {...colorDefaults};
+  const colorProxy = { ...colorDefaults };
 
   const convertColors = () => {
     state.baseColor[3] = colorProxy.baseAlpha;
-    Object.assign(state.baseColor,
-        colorProxy.baseColor.map((c) => c/255));
+    Object.assign(
+      state.baseColor,
+      colorProxy.baseColor.map((c) => c / 255),
+    );
 
     state.flowColor[3] = colorProxy.flowAlpha;
-    Object.assign(state.flowColor,
-      colorProxy.flowColor.map((c) => c/255));
+    Object.assign(
+      state.flowColor,
+      colorProxy.flowColor.map((c) => c / 255),
+    );
 
     state.fadeColor[3] = colorProxy.fadeAlpha;
-    Object.assign(state.fadeColor,
-      colorProxy.fadeColor.map((c) => c/255));
+    Object.assign(
+      state.fadeColor,
+      colorProxy.fadeColor.map((c) => c / 255),
+    );
   };
 
-  gui.settings.addColor(colorProxy, 'flowColor').onChange(convertColors);
-  gui.settings.add(colorProxy, 'flowAlpha').onChange(convertColors);
+  gui.settings.addColor(colorProxy, "flowColor").onChange(convertColors);
+  gui.settings.add(colorProxy, "flowAlpha").onChange(convertColors);
 
-  gui.settings.addColor(colorProxy, 'baseColor').onChange(convertColors);
-  gui.settings.add(colorProxy, 'baseAlpha').onChange(convertColors);
+  gui.settings.addColor(colorProxy, "baseColor").onChange(convertColors);
+  gui.settings.add(colorProxy, "baseAlpha").onChange(convertColors);
 
-  gui.settings.addColor(colorProxy, 'fadeColor').onChange(convertColors);
-  gui.settings.add(colorProxy, 'fadeAlpha').onChange(convertColors);
+  gui.settings.addColor(colorProxy, "fadeColor").onChange(convertColors);
+  gui.settings.add(colorProxy, "fadeAlpha").onChange(convertColors);
 
   convertColors();
 
-
   // Color map blend
 
-  gui.blend = gui.main.addFolder('color blend');
+  gui.blend = gui.main.addFolder("color blend");
 
-  const blendProxy = reduce((proxy, k, i) => {
+  const blendProxy = reduce(
+    (proxy, k, i) => {
       proxy[k] = blend.alphas[i];
 
       return proxy;
     },
-    blendKeys, {});
+    blendKeys,
+    {},
+  );
 
   const blendDefaults = { ...blendProxy };
 
-  const convertBlend = () => reduce((alphas, v, k, proxy, i) => {
-      alphas[i] = v;
+  const convertBlend = () =>
+    reduce(
+      (alphas, v, k, proxy, i) => {
+        alphas[i] = v;
 
-      return alphas;
-    },
-    blendProxy, blend.alphas);
+        return alphas;
+      },
+      blendProxy,
+      blend.alphas,
+    );
 
-  for(let b = 0; b < blendKeys.length; ++b) {
+  for (let b = 0; b < blendKeys.length; ++b) {
     gui.blend.add(blendProxy, blendKeys[b]).onChange(convertBlend);
   }
 
-
   // Respawn
 
-  gui.spawn = gui.main.addFolder('spawn');
+  gui.spawn = gui.main.addFolder("spawn");
 
-  for(let s in resetSpawner.uniforms) {
+  for (let s in resetSpawner.uniforms) {
     !(typeof resetSpawner.uniforms[s]).match(simpleGUIRegEx) &&
       gui.spawn.add(resetSpawner.uniforms, s);
   }
 
   const resetSpawnerDefaults = {
     radius: 0.3,
-    speed: 0.005
+    speed: 0.005,
   };
-
 
   // Optical flow
 
-  gui.opticalFlow = gui.main.addFolder('optical flow');
+  gui.opticalFlow = gui.main.addFolder("optical flow");
 
-  for(let s in opticalFlowState) {
+  for (let s in opticalFlowState) {
     !(typeof opticalFlowState[s]).match(simpleGUIRegEx) &&
       gui.opticalFlow.add(opticalFlowState, s);
   }
 
-
   // Reflow
 
-  gui.reflow = gui.main.addFolder('reflow');
+  gui.reflow = gui.main.addFolder("reflow");
 
-  gui.reflow.add(flowPixelState, 'scale', Object.keys(flowPixelScales));
-
+  gui.reflow.add(flowPixelState, "scale", Object.keys(flowPixelScales));
 
   // Time
 
-  gui.time = gui.main.addFolder('time');
+  gui.time = gui.main.addFolder("time");
 
-  const timeSettings = ['paused', 'step', 'rate', 'end', 'loop'];
+  const timeSettings = ["paused", "step", "rate", "end", "loop"];
 
   timeSettings.forEach((t) => gui.time.add(timer.app, t));
 
-
   // Audio
 
-  gui.audio = gui.main.addFolder('audio');
+  gui.audio = gui.main.addFolder("audio");
 
-  for(let s in audioState) {
+  for (let s in audioState) {
     const control = gui.audio.add(audioState, s);
 
-    (s === 'audible') && control.onChange(toggleAudible);
+    s === "audible" && control.onChange(toggleAudible);
   }
-
 
   // Blur
 
-  gui.blur = gui.main.addFolder('blur');
+  gui.blur = gui.main.addFolder("blur");
 
-  for(let s in blurDefaults) {
-    !(typeof blurState[s]).match(simpleGUIRegEx) &&
-      gui.blur.add(blurState, s);
+  for (let s in blurDefaults) {
+    !(typeof blurState[s]).match(simpleGUIRegEx) && gui.blur.add(blurState, s);
   }
-
 
   // Controls
 
@@ -1445,29 +1547,29 @@ export default (canvas, options) => {
     spawnImageTargets,
     reset,
     restart,
-    toggleBase
+    toggleBase,
   };
 
+  gui.controls = gui.main.addFolder("controls");
 
-  gui.controls = gui.main.addFolder('controls');
-
-  for(let c in controls) { gui.controls.add(controls, c); }
-
+  for (let c in controls) {
+    gui.controls.add(controls, c);
+  }
 
   // Presets
 
-  gui.presets = gui.main.addFolder('presets');
+  gui.presets = gui.main.addFolder("presets");
 
   const presets = {
-    'Flow'() {
+    Flow() {
       Object.assign(state, {
         flowWidth: 5,
-        colorMapAlpha: 0
+        colorMapAlpha: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.25,
-        speed: 0.01
+        speed: 0.01,
       });
 
       Object.assign(colorProxy, {
@@ -1476,78 +1578,78 @@ export default (canvas, options) => {
         flowAlpha: 1,
         flowColor: [255, 255, 255],
         fadeAlpha: Math.max(state.flowDecay, 0.05),
-        fadeColor: [0, 0, 0]
+        fadeColor: [0, 0, 0],
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
 
       Object.assign(audioState, {
         micSpawnAt: 0,
-        micFormAt: audioDefaults.micFormAt*0.5,
+        micFormAt: audioDefaults.micFormAt * 0.5,
         micFlowAt: 0,
         micFastAt: 0,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.9
+        micSampleAt: audioDefaults.micSampleAt * 0.9,
       });
     },
-    'Wings'() {
+    Wings() {
       Object.assign(state, {
         flowDecay: 0,
-        colorMapAlpha: 0
+        colorMapAlpha: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.05,
-        speed: 0.05
+        speed: 0.05,
       });
 
       Object.assign(colorProxy, {
         flowAlpha: 0.01,
         baseAlpha: 0.8,
         baseColor: [255, 255, 255],
-        fadeAlpha: 0
+        fadeAlpha: 0,
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.55,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.55,
         micFormAt: 0,
         micFlowAt: 0,
         micFastAt: 0,
         micCamAt: 0,
-        micSampleAt: 0
+        micSampleAt: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
     },
-    'Fluid'() {
+    Fluid() {
       Object.assign(state, {
         autoClearView: true,
-        colorMapAlpha: 0.4
+        colorMapAlpha: 0.4,
       });
 
       Object.assign(colorProxy, {
         flowAlpha: 0.15,
         baseAlpha: 0.7,
         baseColor: [255, 255, 255],
-        fadeAlpha: 0
+        fadeAlpha: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(audioState, {
-        micFastAt: audioDefaults.micFastAt*0.8,
-        micCamAt: 0
+        micFastAt: audioDefaults.micFastAt * 0.8,
+        micCamAt: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       clear();
     },
-    'Frequencies'() {
+    Frequencies() {
       Object.assign(state, {
         forceWeight: 0.015,
         flowWeight: -0.2,
@@ -1557,7 +1659,7 @@ export default (canvas, options) => {
         noiseScale: 1.2,
         varyNoiseScale: 2,
         noiseSpeed: 0.0003,
-        varyNoiseSpeed: 0.01
+        varyNoiseSpeed: 0.01,
       });
 
       Object.assign(colorProxy, {
@@ -1566,42 +1668,42 @@ export default (canvas, options) => {
         flowAlpha: 0,
         flowColor: [255, 255, 255],
         fadeAlpha: 0.06,
-        fadeColor: [30, 20, 0]
+        fadeColor: [30, 20, 0],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
         micFormAt: 0,
         micFlowAt: 0,
-        micFastAt: audioDefaults.micFastAt*0.9,
+        micFastAt: audioDefaults.micFastAt * 0.9,
         micCamAt: 0,
-        micSampleAt: 0
+        micSampleAt: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.22,
-        speed: 0
+        speed: 0,
       });
 
       Object.assign(opticalFlowState, {
         speed: 0.03,
-        offset: 0
+        offset: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       spawnImageTargets();
       restart();
     },
-    'Ghostly'() {
+    Ghostly() {
       Object.assign(state, {
         flowDecay: 0.001,
-        colorMapAlpha: 0.2
+        colorMapAlpha: 0.2,
       });
 
       Object.assign(colorProxy, {
@@ -1609,31 +1711,31 @@ export default (canvas, options) => {
         baseColor: [255, 255, 255],
         flowAlpha: 0.04,
         fadeAlpha: 0.03,
-        fadeColor: [0, 0, 0]
+        fadeColor: [0, 0, 0],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.5,
-        micFastAt: audioDefaults.micFastAt*0.8,
-        micFlowAt: audioDefaults.micFlowAt*1.2
+        micSpawnAt: audioDefaults.micSpawnAt * 0.5,
+        micFastAt: audioDefaults.micFastAt * 0.8,
+        micFlowAt: audioDefaults.micFlowAt * 1.2,
       });
 
       Object.assign(blendProxy, {
         mic: 0.6,
         track: 0.6,
-        video: 0.4
+        video: 0.4,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
     },
-    'Rave'() {
+    Rave() {
       Object.assign(state, {
         noiseScale: 12,
         forceWeight: 0.016,
         noiseWeight: 0.003,
         speedAlpha: 0.2,
         target: 0.001,
-        colorMapAlpha: 0.35
+        colorMapAlpha: 0.35,
       });
 
       Object.assign(colorProxy, {
@@ -1642,39 +1744,39 @@ export default (canvas, options) => {
         flowAlpha: 0.5,
         flowColor: [128, 255, 0],
         fadeAlpha: 0.1,
-        fadeColor: [255, 0, 61]
+        fadeColor: [255, 0, 61],
       });
 
       Object.assign(audioState, {
         micSpawnAt: 0,
-        micFormAt: audioDefaults.micFormAt*0.5,
+        micFormAt: audioDefaults.micFormAt * 0.5,
         micFlowAt: 0,
         micFastAt: 0,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.9
+        micSampleAt: audioDefaults.micSampleAt * 0.9,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.3,
-        speed: 2
+        speed: 2,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
     },
-    'Blood'() {
+    Blood() {
       Object.assign(state, {
         forceWeight: 0.015,
         noiseWeight: 0.001,
         noiseSpeed: 0.0005,
         speedAlpha: 0.001,
-        colorMapAlpha: 0.11
+        colorMapAlpha: 0.11,
       });
 
       Object.assign(colorProxy, {
@@ -1683,40 +1785,40 @@ export default (canvas, options) => {
         flowAlpha: 0.15,
         flowColor: [255, 0, 0],
         fadeAlpha: Math.max(state.flowDecay, 0.05),
-        fadeColor: [255, 255, 255]
+        fadeColor: [255, 255, 255],
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.1,
-        speed: 4
+        speed: 4,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0.5
+        video: 0.5,
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
         micFlowAt: 0,
-        micFastAt: audioDefaults.micFastAt*0.5,
+        micFastAt: audioDefaults.micFastAt * 0.5,
         micCamAt: 0,
-        micSampleAt: 0
+        micSampleAt: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       clear();
       restart();
     },
-    'Turbulence'() {
+    Turbulence() {
       Object.assign(state, {
         noiseSpeed: 0.00005,
         noiseScale: 10,
         forceWeight: 0.014,
         noiseWeight: 0.003,
         speedAlpha: 0.01,
-        colorMapAlpha: 0.13
+        colorMapAlpha: 0.13,
       });
 
       Object.assign(colorProxy, {
@@ -1725,28 +1827,28 @@ export default (canvas, options) => {
         flowAlpha: 0.4,
         flowColor: [255, 0, 0],
         fadeAlpha: 0.1,
-        fadeColor: [54, 0, 10]
+        fadeColor: [54, 0, 10],
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0.5
+        video: 0.5,
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
-        micFormAt: audioDefaults.micFormAt*0.7,
-        micFlowAt: audioDefaults.micFlowAt*0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
+        micFormAt: audioDefaults.micFormAt * 0.7,
+        micFlowAt: audioDefaults.micFlowAt * 0.8,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.9
+        micSampleAt: audioDefaults.micSampleAt * 0.9,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       clear();
       restart();
     },
-    'Funhouse'() {
+    Funhouse() {
       Object.assign(state, {
         forceWeight: 0.0165,
         varyForce: 0.3,
@@ -1763,11 +1865,11 @@ export default (canvas, options) => {
         flowDecay: 0.001,
         flowWidth: 8,
         speedAlpha: 0.00002,
-        colorMapAlpha: 1
+        colorMapAlpha: 1,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'normal'
+        scale: "normal",
       });
 
       Object.assign(colorProxy, {
@@ -1775,27 +1877,27 @@ export default (canvas, options) => {
         baseColor: [0, 0, 0],
         flowAlpha: 0.05,
         fadeAlpha: 0.05,
-        fadeColor: [0, 0, 0]
+        fadeColor: [0, 0, 0],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*1.5,
-        micFormAt: audioDefaults.micFormAt*1.3,
+        micSpawnAt: audioDefaults.micSpawnAt * 1.5,
+        micFormAt: audioDefaults.micFormAt * 1.3,
         micFlowAt: 0,
         micFastAt: 0,
-        micCamAt: audioDefaults.micCamAt*0.6,
-        micSampleAt: 0
+        micCamAt: audioDefaults.micCamAt * 0.6,
+        micSampleAt: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 0,
         track: 0,
-        video: 1
+        video: 1,
       });
 
       // console.log(JSON.stringify(audioState));
 
-      toggleBase('dark');
+      toggleBase("dark");
 
       spawnImage(null);
       spawnTargets.spawnImage = tendrils.targets;
@@ -1803,7 +1905,7 @@ export default (canvas, options) => {
 
       // spawnImageTargets();
     },
-    'Noise Only'() {
+    "Noise Only"() {
       Object.assign(state, {
         flowWeight: 0,
         noiseWeight: 0.003,
@@ -1812,7 +1914,7 @@ export default (canvas, options) => {
         noiseSpeed: 0.00025,
         varyNoiseSpeed: -0.3,
         speedAlpha: 0.08,
-        colorMapAlpha: 0.27
+        colorMapAlpha: 0.27,
       });
 
       Object.assign(colorProxy, {
@@ -1821,48 +1923,48 @@ export default (canvas, options) => {
         baseAlpha: 0.6,
         baseColor: [255, 150, 0],
         fadeAlpha: 0.05,
-        fadeColor: [54, 0, 48]
+        fadeColor: [54, 0, 48],
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(audioState, {
-        micFastAt: audioDefaults.micFastAt*0.4,
+        micFastAt: audioDefaults.micFastAt * 0.4,
         micSampleAt: 0,
         micFormAt: 0,
-        micCamAt: audioDefaults.micCamAt*0.8,
-        micSpawnAt: audioDefaults.micSpawnAt*0.6
+        micCamAt: audioDefaults.micCamAt * 0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.6,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
     },
-    'Flow Only'() {
+    "Flow Only"() {
       Object.assign(state, {
         flowDecay: 0.001,
         forceWeight: 0.014,
         noiseWeight: 0,
-        speedAlpha: 0
+        speedAlpha: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.4,
-        speed: 0.15
+        speed: 0.15,
       });
 
       Object.assign(colorProxy, {
         baseAlpha: 0.8,
         baseColor: [100, 200, 255],
         fadeAlpha: 0.1,
-        fadeColor: [0, 0, 0]
+        fadeColor: [0, 0, 0],
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
     },
-    'Folding'() {
+    Folding() {
       Object.assign(state, {
         noiseWeight: 0.005,
         varyNoise: 0.3,
@@ -1873,11 +1975,11 @@ export default (canvas, options) => {
         varyNoiseSpeed: 3,
         target: 0.002,
         speedAlpha: 0.005,
-        colorMapAlpha: 0.3
+        colorMapAlpha: 0.3,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'mirror xy'
+        scale: "mirror xy",
       });
 
       Object.assign(colorProxy, {
@@ -1886,33 +1988,33 @@ export default (canvas, options) => {
         flowAlpha: 0.8,
         flowColor: [173, 0, 255],
         fadeAlpha: 0.15,
-        fadeColor: [0, 20, 51]
+        fadeColor: [0, 20, 51],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
-        micFormAt: audioDefaults.micFormAt*0.6,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
+        micFormAt: audioDefaults.micFormAt * 0.6,
         micFlowAt: 0,
         micFastAt: 0,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.8
+        micSampleAt: audioDefaults.micSampleAt * 0.8,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.15,
-        speed: 20000
+        speed: 20000,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
     },
-    'Rorschach'() {
+    Rorschach() {
       Object.assign(state, {
         noiseScale: 40,
         varyNoiseScale: 0,
@@ -1921,11 +2023,11 @@ export default (canvas, options) => {
         forceWeight: 0.014,
         noiseWeight: 0.0021,
         speedAlpha: 0.000002,
-        colorMapAlpha: 0.1
+        colorMapAlpha: 0.1,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'mirror xy'
+        scale: "mirror xy",
       });
 
       Object.assign(colorProxy, {
@@ -1933,20 +2035,20 @@ export default (canvas, options) => {
         baseColor: [0, 0, 0],
         flowAlpha: 0.2,
         fadeAlpha: 0.05,
-        fadeColor: [255, 255, 255]
+        fadeColor: [255, 255, 255],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
-        micFormAt: audioDefaults.micFormAt*0.8,
-        micFastAt: audioDefaults.micFastAt*0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
+        micFormAt: audioDefaults.micFormAt * 0.8,
+        micFastAt: audioDefaults.micFastAt * 0.8,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*1
+        micSampleAt: audioDefaults.micSampleAt * 1,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
     },
-    'Starlings'() {
+    Starlings() {
       Object.assign(state, {
         flowWeight: 1.5,
         noiseWeight: 0.003,
@@ -1957,11 +2059,11 @@ export default (canvas, options) => {
         noiseSpeed: 0.0001,
         varyNoiseSpeed: 0.1,
         speedAlpha: 0.01,
-        colorMapAlpha: 0.17
+        colorMapAlpha: 0.17,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'mirror xy'
+        scale: "mirror xy",
       });
 
       Object.assign(colorProxy, {
@@ -1970,28 +2072,28 @@ export default (canvas, options) => {
         flowAlpha: 0.1,
         flowColor: [255, 20, 255],
         fadeAlpha: 0.02,
-        fadeColor: [160, 120, 40]
+        fadeColor: [160, 120, 40],
       });
 
       Object.assign(audioState, {
         micSpawnAt: 0,
         micFormAt: 0,
-        micFlowAt: audioDefaults.micFlowAt*0.5,
-        micFastAt: audioDefaults.micFastAt*1.1,
+        micFlowAt: audioDefaults.micFlowAt * 0.5,
+        micFastAt: audioDefaults.micFastAt * 1.1,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.9
+        micSampleAt: audioDefaults.micSampleAt * 0.9,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       spawnSamples();
     },
-    'Sea'() {
+    Sea() {
       Object.assign(state, {
         flowWidth: 5,
         forceWeight: 0.013,
@@ -2005,37 +2107,37 @@ export default (canvas, options) => {
         baseColor: [132, 166, 255],
         baseAlpha: 0.7,
         fadeColor: [0, 44, 110],
-        fadeAlpha: 0.1
+        fadeAlpha: 0.1,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 1.5,
-        speed: 0
+        speed: 0,
       });
 
       Object.assign(colorProxy, {
         baseAlpha: 0.8,
         baseColor: [55, 155, 255],
         fadeAlpha: 0.3,
-        fadeColor: [0, 58, 90]
+        fadeColor: [0, 58, 90],
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0.3
+        video: 0.3,
       });
 
       Object.assign(audioState, {
         micSampleAt: 0,
-        micFormAt: audioDefaults.micFormAt*0.8,
-        micCamAt: audioDefaults.micCamAt*0.8,
-        micSpawnAt: audioDefaults.micSpawnAt*0.5
+        micFormAt: audioDefaults.micFormAt * 0.8,
+        micCamAt: audioDefaults.micCamAt * 0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.5,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
     },
-    'Kelp Forest'() {
+    "Kelp Forest"() {
       Object.assign(state, {
         noiseWeight: 0.004,
         varyNoise: 0.3,
@@ -2046,11 +2148,11 @@ export default (canvas, options) => {
         noiseSpeed: 0.0001,
         varyNoiseSpeed: -4,
         speedAlpha: 0.001,
-        colorMapAlpha: 0.25
+        colorMapAlpha: 0.25,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'mirror xy'
+        scale: "mirror xy",
       });
 
       Object.assign(colorProxy, {
@@ -2059,27 +2161,27 @@ export default (canvas, options) => {
         flowAlpha: 0.4,
         flowColor: [0, 250, 175],
         fadeAlpha: 0.1,
-        fadeColor: [0, 36, 51]
+        fadeColor: [0, 36, 51],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*1,
-        micFormAt: audioDefaults.micFormAt*0.6,
+        micSpawnAt: audioDefaults.micSpawnAt * 1,
+        micFormAt: audioDefaults.micFormAt * 0.6,
         micFlowAt: 0,
         micFastAt: 0,
-        micCamAt: audioDefaults.micCamAt*1,
-        micSampleAt: audioDefaults.micSampleAt*1
+        micCamAt: audioDefaults.micCamAt * 1,
+        micSampleAt: audioDefaults.micSampleAt * 1,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
     },
-    'Tornado Alley'() {
+    "Tornado Alley"() {
       Object.assign(state, {
         noiseWeight: 0.01,
         varyNoise: 0,
@@ -2090,7 +2192,7 @@ export default (canvas, options) => {
         varyNoiseSpeed: 0,
         target: 0.003,
         speedAlpha: 0.005,
-        colorMapAlpha: 1
+        colorMapAlpha: 1,
       });
 
       Object.assign(colorProxy, {
@@ -2099,33 +2201,33 @@ export default (canvas, options) => {
         flowAlpha: 0,
         flowColor: [0, 0, 0],
         fadeAlpha: 0.1,
-        fadeColor: [46, 8, 31]
+        fadeColor: [46, 8, 31],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*1.1,
+        micSpawnAt: audioDefaults.micSpawnAt * 1.1,
         micFormAt: 0,
         micFlowAt: 0,
         micFastAt: 0,
-        micCamAt: audioDefaults.micCamAt*0.7,
-        micSampleAt: 0
+        micCamAt: audioDefaults.micCamAt * 0.7,
+        micSampleAt: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 0.25,
         track: 0.25,
-        video: 0.7
+        video: 0.7,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 1,
-        speed: 0
+        speed: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       spawnImageTargets();
     },
-    'Pop Tide'() {
+    "Pop Tide"() {
       Object.assign(state, {
         noiseWeight: 0.01,
         varyNoise: 0,
@@ -2136,7 +2238,7 @@ export default (canvas, options) => {
         varyNoiseSpeed: 0,
         target: 0.0025,
         speedAlpha: 0.02,
-        colorMapAlpha: 0.5
+        colorMapAlpha: 0.5,
       });
 
       Object.assign(colorProxy, {
@@ -2145,33 +2247,33 @@ export default (canvas, options) => {
         flowAlpha: 0.3,
         flowColor: [128, 0, 255],
         fadeAlpha: 0.1,
-        fadeColor: [255, 230, 0]
+        fadeColor: [255, 230, 0],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
         micFormAt: 0,
         micFlowAt: 0,
         micFastAt: 0,
-        micCamAt: audioDefaults.micCamAt*0.8,
-        micSampleAt: 0
+        micCamAt: audioDefaults.micCamAt * 0.8,
+        micSampleAt: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 1,
-        speed: 0
+        speed: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
     },
-    'Narcissus Pool'() {
+    "Narcissus Pool"() {
       Object.assign(state, {
         noiseWeight: 0.01,
         varyNoise: 0,
@@ -2183,7 +2285,7 @@ export default (canvas, options) => {
         target: 0.003,
         varyTarget: 10,
         speedAlpha: 0.008,
-        colorMapAlpha: 1
+        colorMapAlpha: 1,
       });
 
       Object.assign(colorProxy, {
@@ -2192,7 +2294,7 @@ export default (canvas, options) => {
         flowAlpha: 0,
         flowColor: [0, 0, 0],
         fadeAlpha: 0.1,
-        fadeColor: [36, 18, 18]
+        fadeColor: [36, 18, 18],
       });
 
       Object.assign(audioState, {
@@ -2200,35 +2302,35 @@ export default (canvas, options) => {
         micFormAt: 0,
         micFlowAt: 0,
         micFastAt: 0,
-        micCamAt: audioDefaults.micCamAt*0.7,
-        micSampleAt: 0
+        micCamAt: audioDefaults.micCamAt * 0.7,
+        micSampleAt: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 0.1,
         track: 0.1,
-        video: 0.9
+        video: 0.9,
       });
 
       Object.assign(opticalFlowState, {
         speed: 0.06,
-        offset: 0
+        offset: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       spawnImageTargets();
     },
-    'Minimal'() {
+    Minimal() {
       Object.assign(state, {
         autoClearView: true,
         colorMapAlpha: 1,
         speedAlpha: 1,
         varyNoiseScale: 3,
-        varyNoiseSpeed: 3
+        varyNoiseSpeed: 3,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'mirror xy'
+        scale: "mirror xy",
       });
 
       Object.assign(colorProxy, {
@@ -2236,27 +2338,27 @@ export default (canvas, options) => {
         baseColor: [255, 255, 255],
         flowAlpha: 0,
         fadeColor: [255, 255, 255],
-        fadeAlpha: 0
+        fadeAlpha: 0,
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*1,
-        micFormAt: audioDefaults.micFormAt*0.6,
-        micFlowAt: audioDefaults.micFlowAt*0.6,
-        micFastAt: audioDefaults.micFastAt*0.6,
+        micSpawnAt: audioDefaults.micSpawnAt * 1,
+        micFormAt: audioDefaults.micFormAt * 0.6,
+        micFlowAt: audioDefaults.micFlowAt * 0.6,
+        micFastAt: audioDefaults.micFastAt * 0.6,
         micCamAt: 0,
-        micSampleAt: 0
+        micSampleAt: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
     },
-    'Pissarides'() {
+    Pissarides() {
       Object.assign(state, {
         speedLimit: 0.003,
         speedAlpha: 0.1,
@@ -2264,17 +2366,17 @@ export default (canvas, options) => {
         colorMapAlpha: 0.3333,
         noiseWeight: 0.0004,
         target: 0.0002,
-        varyTarget: 0
+        varyTarget: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 1,
-        speed: 0
+        speed: 0,
       });
 
       Object.assign(blurState, {
         radius: 12,
-        limit: 0.3
+        limit: 0.3,
       });
 
       Object.assign(colorProxy, {
@@ -2283,29 +2385,29 @@ export default (canvas, options) => {
         baseColor: [230, 198, 255],
         flowAlpha: 1,
         flowColor: [255, 0, 50],
-        fadeAlpha: 0
+        fadeAlpha: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
         micFormAt: 0,
-        micFlowAt: audioDefaults.micFlowAt*0.8,
-        micFastAt: audioDefaults.micFastAt*1,
+        micFlowAt: audioDefaults.micFlowAt * 0.8,
+        micFastAt: audioDefaults.micFastAt * 1,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.6
+        micSampleAt: audioDefaults.micSampleAt * 0.6,
       });
 
       Object.assign(opticalFlowState, {
         speed: 0.1,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       clear();
       respawn();
     },
@@ -2314,7 +2416,7 @@ export default (canvas, options) => {
     // 68, 111, 150  |   43, 45, 57  | 124, 199, 201
     // 120, 80, 134  |  183, 87, 74  | 164, 162, 173
     // 210, 218, 221 | 197, 118, 204 |  40, 39, 39
-    'S:Intro'() {
+    "S:Intro"() {
       // See 'Pissarides'.
 
       Object.assign(state, {
@@ -2324,12 +2426,12 @@ export default (canvas, options) => {
         colorMapAlpha: 0.3333,
         noiseWeight: 0.0006,
         target: 0.0003,
-        varyTarget: 0
+        varyTarget: 0,
       });
 
       Object.assign(blurState, { radius: 9, limit: 0.5 });
 
-      Object.assign(resetSpawner.uniforms, { radius: 16/9, speed: 0 });
+      Object.assign(resetSpawner.uniforms, { radius: 16 / 9, speed: 0 });
 
       Object.assign(colorProxy, {
         baseAlpha: 0.9,
@@ -2337,23 +2439,23 @@ export default (canvas, options) => {
         flowAlpha: 0.2,
         // flowColor: [43, 45, 57],
         fadeAlpha: Math.max(state.flowDecay, 0.05),
-        fadeColor: [43, 45, 57]
+        fadeColor: [43, 45, 57],
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       clear();
       respawn();
 
       Object.assign(audioState, {
-        trackSpawnAt: audioDefaults.trackSpawnAt*0.8,
-        trackFormAt: audioDefaults.trackFormAt*1.5,
-        trackFlowAt: audioDefaults.trackFlowAt*1.2,
-        trackFastAt: audioDefaults.trackFastAt*0.6,
-        trackCamAt: audioDefaults.trackCamAt*1.7,
-        trackSampleAt: audioDefaults.trackSampleAt*1.7
+        trackSpawnAt: audioDefaults.trackSpawnAt * 0.8,
+        trackFormAt: audioDefaults.trackFormAt * 1.5,
+        trackFlowAt: audioDefaults.trackFlowAt * 1.2,
+        trackFastAt: audioDefaults.trackFastAt * 0.6,
+        trackCamAt: audioDefaults.trackCamAt * 1.7,
+        trackSampleAt: audioDefaults.trackSampleAt * 1.7,
       });
     },
-    'S:Awe'() {
+    "S:Awe"() {
       // See 'Blood'.
 
       Object.assign(state, {
@@ -2361,7 +2463,7 @@ export default (canvas, options) => {
         noiseWeight: 0.001,
         noiseSpeed: 0.0005,
         speedAlpha: 0.001,
-        colorMapAlpha: 0.11
+        colorMapAlpha: 0.11,
       });
 
       Object.assign(blurState, { radius: 9, limit: 0.5 });
@@ -2374,22 +2476,22 @@ export default (canvas, options) => {
         flowAlpha: 0.3,
         flowColor: [119, 80, 133],
         fadeAlpha: Math.max(state.flowDecay, 0.05),
-        fadeColor: [68, 111, 150]
+        fadeColor: [68, 111, 150],
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
 
       Object.assign(audioState, {
-        trackSpawnAt: audioDefaults.trackSpawnAt*0.8,
-        trackFormAt: audioDefaults.trackFormAt*1.5,
-        trackFlowAt: audioDefaults.trackFlowAt*1.2,
-        trackFastAt: audioDefaults.trackFastAt*0.6,
-        trackCamAt: audioDefaults.trackCamAt*1.7,
-        trackSampleAt: audioDefaults.trackSampleAt*1.7
+        trackSpawnAt: audioDefaults.trackSpawnAt * 0.8,
+        trackFormAt: audioDefaults.trackFormAt * 1.5,
+        trackFlowAt: audioDefaults.trackFlowAt * 1.2,
+        trackFastAt: audioDefaults.trackFastAt * 0.6,
+        trackCamAt: audioDefaults.trackCamAt * 1.7,
+        trackSampleAt: audioDefaults.trackSampleAt * 1.7,
       });
     },
-    'S:Wonder'() {
+    "S:Wonder"() {
       // See 'Sea'.
 
       Object.assign(state, {
@@ -2399,7 +2501,7 @@ export default (canvas, options) => {
         flowDecay: 0.01,
         target: 0.0001,
         speedAlpha: 0.01,
-        colorMapAlpha: 0.2
+        colorMapAlpha: 0.2,
       });
 
       Object.assign(blendProxy, { mic: 1, track: 1, video: 0.3 });
@@ -2411,22 +2513,22 @@ export default (canvas, options) => {
         flowAlpha: 0.2,
         flowColor: [210, 218, 221],
         fadeAlpha: Math.max(state.flowDecay, 0.3),
-        fadeColor: [40, 39, 39]
+        fadeColor: [40, 39, 39],
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
 
       Object.assign(audioState, {
-        trackSpawnAt: audioDefaults.trackSpawnAt*0.8,
-        trackFormAt: audioDefaults.trackFormAt*1.5,
-        trackFlowAt: audioDefaults.trackFlowAt*1.2,
-        trackFastAt: audioDefaults.trackFastAt*0.6,
-        trackCamAt: audioDefaults.trackCamAt*1.7,
-        trackSampleAt: audioDefaults.trackSampleAt*1.7
+        trackSpawnAt: audioDefaults.trackSpawnAt * 0.8,
+        trackFormAt: audioDefaults.trackFormAt * 1.5,
+        trackFlowAt: audioDefaults.trackFlowAt * 1.2,
+        trackFastAt: audioDefaults.trackFastAt * 0.6,
+        trackCamAt: audioDefaults.trackCamAt * 1.7,
+        trackSampleAt: audioDefaults.trackSampleAt * 1.7,
       });
     },
-    'S:Euphoria'() {
+    "S:Euphoria"() {
       // See 'H:X:Starlings'.
 
       Object.assign(state, {
@@ -2439,11 +2541,11 @@ export default (canvas, options) => {
         noiseSpeed: 0.0001,
         varyNoiseSpeed: 0.1,
         speedAlpha: 0.01,
-        colorMapAlpha: 0.17
+        colorMapAlpha: 0.17,
       });
 
       Object.assign(blurState, { radius: 9, limit: 0.5 });
-      Object.assign(flowPixelState, { scale: 'mirror xy' });
+      Object.assign(flowPixelState, { scale: "mirror xy" });
       Object.assign(resetSpawner.uniforms, { radius: 1, speed: 0 });
 
       Object.assign(colorProxy, {
@@ -2452,24 +2554,24 @@ export default (canvas, options) => {
         flowAlpha: 0.2,
         flowColor: [183, 87, 74],
         fadeAlpha: 0.1,
-        fadeColor: [120, 80, 134]
+        fadeColor: [120, 80, 134],
       });
 
       Object.assign(blendProxy, { mic: 1, track: 1, video: 0 });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
 
       Object.assign(audioState, {
-        trackSpawnAt: audioDefaults.trackSpawnAt*0.8,
-        trackFormAt: audioDefaults.trackFormAt*1.5,
-        trackFlowAt: audioDefaults.trackFlowAt*1.2,
-        trackFastAt: audioDefaults.trackFastAt*0.6,
-        trackCamAt: audioDefaults.trackCamAt*1.7,
-        trackSampleAt: audioDefaults.trackSampleAt*1.7
+        trackSpawnAt: audioDefaults.trackSpawnAt * 0.8,
+        trackFormAt: audioDefaults.trackFormAt * 1.5,
+        trackFlowAt: audioDefaults.trackFlowAt * 1.2,
+        trackFastAt: audioDefaults.trackFastAt * 0.6,
+        trackCamAt: audioDefaults.trackCamAt * 1.7,
+        trackSampleAt: audioDefaults.trackSampleAt * 1.7,
       });
     },
-    'S:Inspiration'() {
+    "S:Inspiration"() {
       // See 'H:B:Pop Tide'.
 
       Object.assign(state, {
@@ -2482,7 +2584,7 @@ export default (canvas, options) => {
         varyNoiseSpeed: 0,
         target: 0.0025,
         speedAlpha: 0.02,
-        colorMapAlpha: 0.5
+        colorMapAlpha: 0.5,
       });
 
       Object.assign(colorProxy, {
@@ -2491,26 +2593,26 @@ export default (canvas, options) => {
         flowAlpha: 0.2,
         flowColor: [197, 118, 204],
         fadeAlpha: Math.max(state.flowDecay, 0.1),
-        fadeColor: [68, 111, 150]
+        fadeColor: [68, 111, 150],
       });
 
       Object.assign(blurState, { radius: 9, limit: 0.5 });
       Object.assign(blendProxy, { mic: 1, track: 1, video: 0 });
       Object.assign(resetSpawner.uniforms, { radius: 0.7, speed: 0.3 });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
 
       Object.assign(audioState, {
-        trackSpawnAt: audioDefaults.trackSpawnAt*0.8,
-        trackFormAt: audioDefaults.trackFormAt*1.5,
-        trackFlowAt: audioDefaults.trackFlowAt*1.2,
-        trackFastAt: audioDefaults.trackFastAt*0.6,
-        trackCamAt: audioDefaults.trackCamAt*1.7,
-        trackSampleAt: audioDefaults.trackSampleAt*1.7
+        trackSpawnAt: audioDefaults.trackSpawnAt * 0.8,
+        trackFormAt: audioDefaults.trackFormAt * 1.5,
+        trackFlowAt: audioDefaults.trackFlowAt * 1.2,
+        trackFastAt: audioDefaults.trackFastAt * 0.6,
+        trackCamAt: audioDefaults.trackCamAt * 1.7,
+        trackSampleAt: audioDefaults.trackSampleAt * 1.7,
       });
     },
-    'S:Transcendence'() {
+    "S:Transcendence"() {
       // See 'Flow'.
 
       Object.assign(state, { flowWidth: 5, colorMapAlpha: 0 });
@@ -2523,22 +2625,22 @@ export default (canvas, options) => {
         flowAlpha: 0.2,
         flowColor: [124, 199, 201],
         fadeAlpha: Math.max(state.flowDecay, 0.1),
-        fadeColor: [43, 45, 57]
+        fadeColor: [43, 45, 57],
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
 
       Object.assign(audioState, {
-        trackSpawnAt: audioDefaults.trackSpawnAt*0.8,
-        trackFormAt: audioDefaults.trackFormAt*1.5,
-        trackFlowAt: audioDefaults.trackFlowAt*1.2,
-        trackFastAt: audioDefaults.trackFastAt*0.6,
-        trackCamAt: audioDefaults.trackCamAt*1.7,
-        trackSampleAt: audioDefaults.trackSampleAt*1.7
+        trackSpawnAt: audioDefaults.trackSpawnAt * 0.8,
+        trackFormAt: audioDefaults.trackFormAt * 1.5,
+        trackFlowAt: audioDefaults.trackFlowAt * 1.2,
+        trackFastAt: audioDefaults.trackFastAt * 0.6,
+        trackCamAt: audioDefaults.trackCamAt * 1.7,
+        trackSampleAt: audioDefaults.trackSampleAt * 1.7,
       });
     },
-    'S:Basking'() {
+    "S:Basking"() {
       // See 'Frequencies'.
 
       Object.assign(state, {
@@ -2550,7 +2652,7 @@ export default (canvas, options) => {
         noiseScale: 1.2,
         varyNoiseScale: 2,
         noiseSpeed: 0.0003,
-        varyNoiseSpeed: 0.01
+        varyNoiseSpeed: 0.01,
       });
 
       Object.assign(colorProxy, {
@@ -2559,7 +2661,7 @@ export default (canvas, options) => {
         flowAlpha: 0.1,
         flowColor: [210, 218, 221],
         fadeAlpha: Math.max(state.flowDecay, 0.1),
-        fadeColor: [40, 39, 39]
+        fadeColor: [40, 39, 39],
       });
 
       Object.assign(blurState, { radius: 9, limit: 0.5 });
@@ -2567,20 +2669,20 @@ export default (canvas, options) => {
       Object.assign(resetSpawner.uniforms, { radius: 0.3, speed: 0 });
       Object.assign(opticalFlowState, { speed: 0.03, offset: 0 });
 
-      toggleBase('dark');
+      toggleBase("dark");
       spawnImageTargets();
       restart();
 
       Object.assign(audioState, {
-        trackSpawnAt: audioDefaults.trackSpawnAt*0.8,
-        trackFormAt: audioDefaults.trackFormAt*1.5,
-        trackFlowAt: audioDefaults.trackFlowAt*1.2,
-        trackFastAt: audioDefaults.trackFastAt*0.6,
-        trackCamAt: audioDefaults.trackCamAt*1.7,
-        trackSampleAt: audioDefaults.trackSampleAt*1.7
+        trackSpawnAt: audioDefaults.trackSpawnAt * 0.8,
+        trackFormAt: audioDefaults.trackFormAt * 1.5,
+        trackFlowAt: audioDefaults.trackFlowAt * 1.2,
+        trackFastAt: audioDefaults.trackFastAt * 0.6,
+        trackCamAt: audioDefaults.trackCamAt * 1.7,
+        trackSampleAt: audioDefaults.trackSampleAt * 1.7,
       });
     },
-    'S:Subscribe': () => presets['S:Intro'](),
+    "S:Subscribe": () => presets["S:Intro"](),
 
     // Hysteria Kinetic Bliss (H)
     // H white 236, 251, 208
@@ -2596,15 +2698,15 @@ export default (canvas, options) => {
     // H dark green 3, 66, 2
     // H dark orange 90, 31, 33
     // H black 10, 21, 42
-    'H:G:Flow'() {
+    "H:G:Flow"() {
       Object.assign(state, {
         flowWidth: 5,
-        colorMapAlpha: 0
+        colorMapAlpha: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.25,
-        speed: 0.01
+        speed: 0.01,
       });
 
       Object.assign(colorProxy, {
@@ -2613,21 +2715,21 @@ export default (canvas, options) => {
         flowAlpha: 1,
         flowColor: [236, 251, 208],
         fadeAlpha: Math.max(state.flowDecay, 0.05),
-        fadeColor: [47, 15, 35]
+        fadeColor: [47, 15, 35],
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
 
       Object.assign(audioState, {
         micSpawnAt: 0,
-        micFormAt: audioDefaults.micFormAt*0.5,
+        micFormAt: audioDefaults.micFormAt * 0.5,
         micFlowAt: 0,
         micFastAt: 0,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.9
+        micSampleAt: audioDefaults.micSampleAt * 0.9,
       });
     },
-    'H:Z:Folding'() {
+    "H:Z:Folding"() {
       Object.assign(state, {
         noiseWeight: 0.005,
         varyNoise: 0.3,
@@ -2638,11 +2740,11 @@ export default (canvas, options) => {
         varyNoiseSpeed: 3,
         target: 0.002,
         speedAlpha: 0.005,
-        colorMapAlpha: 0.3
+        colorMapAlpha: 0.3,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'mirror xy'
+        scale: "mirror xy",
       });
 
       Object.assign(colorProxy, {
@@ -2651,33 +2753,33 @@ export default (canvas, options) => {
         flowAlpha: 0.8,
         flowColor: [209, 22, 82],
         fadeAlpha: 0.15,
-        fadeColor: [222, 50, 51]
+        fadeColor: [222, 50, 51],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
-        micFormAt: audioDefaults.micFormAt*0.6,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
+        micFormAt: audioDefaults.micFormAt * 0.6,
         micFlowAt: 0,
         micFastAt: 0,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.8
+        micSampleAt: audioDefaults.micSampleAt * 0.8,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.15,
-        speed: 20000
+        speed: 20000,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
     },
-    'H:X:Starlings'() {
+    "H:X:Starlings"() {
       Object.assign(state, {
         flowWeight: 1.5,
         noiseWeight: 0.003,
@@ -2688,11 +2790,11 @@ export default (canvas, options) => {
         noiseSpeed: 0.0001,
         varyNoiseSpeed: 0.1,
         speedAlpha: 0.01,
-        colorMapAlpha: 0.17
+        colorMapAlpha: 0.17,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'mirror xy'
+        scale: "mirror xy",
       });
 
       Object.assign(colorProxy, {
@@ -2701,28 +2803,28 @@ export default (canvas, options) => {
         flowAlpha: 0.1,
         flowColor: [222, 50, 51],
         fadeAlpha: 0.02,
-        fadeColor: [194, 106, 69]
+        fadeColor: [194, 106, 69],
       });
 
       Object.assign(audioState, {
         micSpawnAt: 0,
         micFormAt: 0,
-        micFlowAt: audioDefaults.micFlowAt*0.5,
-        micFastAt: audioDefaults.micFastAt*1.1,
+        micFlowAt: audioDefaults.micFlowAt * 0.5,
+        micFastAt: audioDefaults.micFastAt * 1.1,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.9
+        micSampleAt: audioDefaults.micSampleAt * 0.9,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       spawnSamples();
     },
-    'H:C:Kelp Forest'() {
+    "H:C:Kelp Forest"() {
       Object.assign(state, {
         noiseWeight: 0.004,
         varyNoise: 0.3,
@@ -2733,11 +2835,11 @@ export default (canvas, options) => {
         noiseSpeed: 0.0001,
         varyNoiseSpeed: -4,
         speedAlpha: 0.001,
-        colorMapAlpha: 0.25
+        colorMapAlpha: 0.25,
       });
 
       Object.assign(flowPixelState, {
-        scale: 'mirror xy'
+        scale: "mirror xy",
       });
 
       Object.assign(colorProxy, {
@@ -2746,27 +2848,27 @@ export default (canvas, options) => {
         flowAlpha: 0.6,
         flowColor: [222, 50, 51],
         fadeAlpha: 0.1,
-        fadeColor: [3, 66, 2]
+        fadeColor: [3, 66, 2],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*1,
-        micFormAt: audioDefaults.micFormAt*0.6,
+        micSpawnAt: audioDefaults.micSpawnAt * 1,
+        micFormAt: audioDefaults.micFormAt * 0.6,
         micFlowAt: 0,
         micFastAt: 0,
-        micCamAt: audioDefaults.micCamAt*1,
-        micSampleAt: audioDefaults.micSampleAt*1
+        micCamAt: audioDefaults.micCamAt * 1,
+        micSampleAt: audioDefaults.micSampleAt * 1,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
     },
-    'H:V:Tornado Alley'() {
+    "H:V:Tornado Alley"() {
       Object.assign(state, {
         noiseWeight: 0.01,
         varyNoise: 0,
@@ -2777,7 +2879,7 @@ export default (canvas, options) => {
         varyNoiseSpeed: 0,
         target: 0.003,
         speedAlpha: 0.005,
-        colorMapAlpha: 0.85
+        colorMapAlpha: 0.85,
       });
 
       Object.assign(colorProxy, {
@@ -2786,33 +2888,33 @@ export default (canvas, options) => {
         flowAlpha: 0.1,
         flowColor: [209, 22, 82],
         fadeAlpha: 0.06,
-        fadeColor: [90, 31, 33]
+        fadeColor: [90, 31, 33],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*1.1,
+        micSpawnAt: audioDefaults.micSpawnAt * 1.1,
         micFormAt: 0,
         micFlowAt: 0,
         micFastAt: 0,
-        micCamAt: audioDefaults.micCamAt*0.7,
-        micSampleAt: 0
+        micCamAt: audioDefaults.micCamAt * 0.7,
+        micSampleAt: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 0.25,
         track: 0.25,
-        video: 0.7
+        video: 0.7,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 1,
-        speed: 0
+        speed: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       spawnImageTargets();
     },
-    'H:B:Pop Tide'() {
+    "H:B:Pop Tide"() {
       Object.assign(state, {
         noiseWeight: 0.01,
         varyNoise: 0,
@@ -2823,7 +2925,7 @@ export default (canvas, options) => {
         varyNoiseSpeed: 0,
         target: 0.0025,
         speedAlpha: 0.02,
-        colorMapAlpha: 0.5
+        colorMapAlpha: 0.5,
       });
 
       Object.assign(colorProxy, {
@@ -2832,33 +2934,33 @@ export default (canvas, options) => {
         flowAlpha: 0.2,
         flowColor: [236, 251, 208],
         fadeAlpha: 0.1,
-        fadeColor: [82, 164, 52]
+        fadeColor: [82, 164, 52],
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
         micFormAt: audioDefaults.micFormAt,
         micFlowAt: audioDefaults.micFlowAt,
         micFastAt: 0,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.8
+        micSampleAt: audioDefaults.micSampleAt * 0.8,
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 0.6,
-        speed: 0
+        speed: 0,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       restart();
     },
-    'H:N:Narcissus Pool'() {
+    "H:N:Narcissus Pool"() {
       Object.assign(state, {
         noiseWeight: 0.01,
         varyNoise: 0,
@@ -2870,7 +2972,7 @@ export default (canvas, options) => {
         target: 0.003,
         varyTarget: 10,
         speedAlpha: 0.008,
-        colorMapAlpha: 1
+        colorMapAlpha: 1,
       });
 
       Object.assign(colorProxy, {
@@ -2879,7 +2981,7 @@ export default (canvas, options) => {
         flowAlpha: 0.1,
         flowColor: [183, 49, 126],
         fadeAlpha: 0.2,
-        fadeColor: [47, 15, 35]
+        fadeColor: [47, 15, 35],
       });
 
       Object.assign(audioState, {
@@ -2887,22 +2989,22 @@ export default (canvas, options) => {
         micFormAt: 0,
         micFlowAt: 0,
         micFastAt: 0,
-        micCamAt: audioDefaults.micCamAt*0.7,
-        micSampleAt: 0
+        micCamAt: audioDefaults.micCamAt * 0.7,
+        micSampleAt: 0,
       });
 
       Object.assign(blendProxy, {
         mic: 0.1,
         track: 0.1,
-        video: 0.9
+        video: 0.9,
       });
 
       Object.assign(opticalFlowState, { speed: 0.025 });
 
-      toggleBase('dark');
+      toggleBase("dark");
       spawnImageTargets();
     },
-    'H:M:Pissarides'() {
+    "H:M:Pissarides"() {
       Object.assign(state, {
         speedLimit: 0.003,
         speedAlpha: 0.1,
@@ -2910,17 +3012,17 @@ export default (canvas, options) => {
         colorMapAlpha: 0.3333,
         noiseWeight: 0.0004,
         target: 0.0002,
-        varyTarget: 0
+        varyTarget: 0,
       });
 
       Object.assign(resetSpawner.uniforms, {
         radius: 1,
-        speed: 0
+        speed: 0,
       });
 
       Object.assign(blurState, {
         radius: 12,
-        limit: 0.3
+        limit: 0.3,
       });
 
       Object.assign(colorProxy, {
@@ -2929,29 +3031,29 @@ export default (canvas, options) => {
         flowAlpha: 1,
         flowColor: [194, 106, 69],
         fadeAlpha: 0.06,
-        fadeColor: [222, 50, 51]
+        fadeColor: [222, 50, 51],
       });
 
       Object.assign(blendProxy, {
         mic: 1,
         track: 1,
-        video: 0
+        video: 0,
       });
 
       Object.assign(audioState, {
-        micSpawnAt: audioDefaults.micSpawnAt*0.8,
+        micSpawnAt: audioDefaults.micSpawnAt * 0.8,
         micFormAt: audioDefaults.micFormAt,
-        micFlowAt: audioDefaults.micFlowAt*0.6,
+        micFlowAt: audioDefaults.micFlowAt * 0.6,
         micFastAt: audioDefaults.micFastAt,
         micCamAt: 0,
-        micSampleAt: audioDefaults.micSampleAt*0.6
+        micSampleAt: audioDefaults.micSampleAt * 0.6,
       });
 
       Object.assign(opticalFlowState, {
         speed: 0.1,
       });
 
-      toggleBase('dark');
+      toggleBase("dark");
       clear();
       respawn();
     },
@@ -2960,7 +3062,7 @@ export default (canvas, options) => {
   const presetAuto = {
     interval: null,
     current: 0,
-    loop: appSettings.loopPresets
+    loop: appSettings.loopPresets,
   };
 
   const wrapPresetter = (presetter, k, name) => {
@@ -2982,7 +3084,7 @@ export default (canvas, options) => {
     // restart();
 
     presetAuto.current = k;
-    console.log('Preset', k, name);
+    console.log("Preset", k, name);
   };
 
   const presetterKeys = Object.keys(presets);
@@ -2997,19 +3099,17 @@ export default (canvas, options) => {
     clearInterval(presetAuto.interval);
     presetAuto.interval = null;
 
-    if(presetAuto.loop) {
+    if (presetAuto.loop) {
       presetAuto.interval = setInterval(() => {
-          const next = (presetAuto.current+1)%presetterKeys.length;
+        const next = (presetAuto.current + 1) % presetterKeys.length;
 
-          presets[presetterKeys[next]]();
-        },
-        presetAuto.loop);
+        presets[presetterKeys[next]]();
+      }, presetAuto.loop);
     }
   };
 
-  gui.presets.add(presetAuto, 'loop').onFinishChange(updatePresetAuto);
+  gui.presets.add(presetAuto, "loop").onFinishChange(updatePresetAuto);
   updatePresetAuto(presetAuto.loop);
-
 
   // Hide by default till the animation's over
 
@@ -3021,7 +3121,6 @@ export default (canvas, options) => {
 
   containGUI.appendChild(gui.main.domElement);
   canvas.parentElement.appendChild(containGUI);
-
 
   // Keyboard mash!
   /**
@@ -3049,45 +3148,44 @@ export default (canvas, options) => {
     // Quick track control
 
     const togglePlay = (play = track.paused) =>
-      ((play)? track.play() : track.pause());
+      play ? track.play() : track.pause();
 
     const scrub = (by) => {
-      track.currentTime += by*0.001;
+      track.currentTime += by * 0.001;
       togglePlay(true);
     };
-
 
     const keyframeCall = (...calls) => {
       keyframe(null, calls);
       each((call) => call(), calls);
     };
 
-    const keyframeCaller = (...calls) => () => keyframeCall(...calls);
-
+    const keyframeCaller =
+      (...calls) =>
+      () =>
+        keyframeCall(...calls);
 
     // Invoke the functions for each setting being edited.
     const resetEach = (all) => {
-        each((x) => (x.reset && x.reset()), all);
-        updateGUI();
-      };
+      each((x) => x.reset && x.reset(), all);
+      updateGUI();
+    };
 
     const adjustEach = curry((by, all) => {
-        each((x) => (x.adjust && x.adjust(by)), all);
-        updateGUI();
-      });
-
+      each((x) => x.adjust && x.adjust(by), all);
+      updateGUI();
+    });
 
     // Common case for editing a given setting.
 
-    const copy = (into, source, key) => into[key] = source[key];
-    const copier = curry(copy, copy.length+1);
+    const copy = (into, source, key) => (into[key] = source[key]);
+    const copier = curry(copy, copy.length + 1);
 
-    const adjust = (into, key, scale, by) => into[key] += scale*by;
+    const adjust = (into, key, scale, by) => (into[key] += scale * by);
     const adjuster = curry(adjust);
 
-    const flip = (into, key) => into[key] = !into[key];
-    const flipper = curry(flip, flip.length+1);
-
+    const flip = (into, key) => (into[key] = !into[key]);
+    const flipper = curry(flip, flip.length + 1);
 
     // Shorthands
 
@@ -3097,14 +3195,13 @@ export default (canvas, options) => {
 
     const stateBool = (key) => ({
       reset: stateCopy(key),
-      go: stateFlip(key)
+      go: stateFlip(key),
     });
 
     const stateNum = (key, scale) => ({
       reset: stateCopy(key),
-      adjust: stateEdit(key, scale)
+      adjust: stateEdit(key, scale),
     });
-
 
     const editing = {};
 
@@ -3113,183 +3210,188 @@ export default (canvas, options) => {
      * @todo Inputs for the other things in full state, controls, and
      *     presets.
      */
-    const editMap = ((appSettings.editorKeys)?
-        {
-          '`': {
+    const editMap = appSettings.editorKeys
+      ? {
+          "`": {
             reset: () => {
               tendrils.setup(defaultState.rootNum);
               restart();
             },
             adjust: (by) => {
-              tendrils.setup(state.rootNum*Math.pow(2, by));
+              tendrils.setup(state.rootNum * Math.pow(2, by));
               restart();
-            }
+            },
           },
 
-          'P': stateBool('autoClearView'),
+          P: stateBool("autoClearView"),
 
-          'Q': stateNum('forceWeight', 0.01),
-          'A': stateNum('flowWeight', 0.02),
-          'W': stateNum('noiseWeight', 0.0002),
+          Q: stateNum("forceWeight", 0.01),
+          A: stateNum("flowWeight", 0.02),
+          W: stateNum("noiseWeight", 0.0002),
 
-          'S': stateNum('flowDecay', 0.005),
-          'D': stateNum('flowWidth', 1),
+          S: stateNum("flowDecay", 0.005),
+          D: stateNum("flowWidth", 1),
 
-          'E': stateNum('noiseScale', 1),
-          'R': stateNum('noiseSpeed', 0.002),
+          E: stateNum("noiseScale", 1),
+          R: stateNum("noiseSpeed", 0.002),
 
-          'Z': stateNum('damping', 0.001),
-          'X': stateNum('speedLimit', 0.0001),
+          Z: stateNum("damping", 0.001),
+          X: stateNum("speedLimit", 0.0001),
 
-          'N': stateNum('speedAlpha', 0.002),
-          'M': stateNum('lineWidth', 0.1),
+          N: stateNum("speedAlpha", 0.002),
+          M: stateNum("lineWidth", 0.1),
 
           // <control> is a special case for re-assigning keys, see below
-          '<control>': (key, assign) => {
+          "<control>": (key, assign) => {
             delete editMap[key];
             delete callMap[key];
 
-            callMap[key] = keyframeCaller(() =>
-                Object.assign(state, assign));
-          }
+            callMap[key] = keyframeCaller(() => Object.assign(state, assign));
+          },
         }
-      : {});
+      : {};
 
-    const callMap = ((appSettings.editorKeys)?
-        {
-          'H': () => toggleShowGUI(),
+    const callMap = appSettings.editorKeys
+      ? {
+          H: () => toggleShowGUI(),
 
-          'O': keyframeCaller(() => tendrils.clear()),
+          O: keyframeCaller(() => tendrils.clear()),
 
-          '1': keyframeCaller(presets['Flow']),
-          '2': keyframeCaller(presets['Wings']),
-          '3': keyframeCaller(presets['Fluid']),
-          '4': keyframeCaller(presets['Frequencies']),
-          '5': keyframeCaller(presets['Ghostly']),
-          '6': keyframeCaller(presets['Rave']),
-          '7': keyframeCaller(presets['Blood']),
-          '8': keyframeCaller(presets['Turbulence']),
-          '9': keyframeCaller(presets['Funhouse']),
-          '0': keyframeCaller(presets['Noise Only']),
+          1: keyframeCaller(presets["Flow"]),
+          2: keyframeCaller(presets["Wings"]),
+          3: keyframeCaller(presets["Fluid"]),
+          4: keyframeCaller(presets["Frequencies"]),
+          5: keyframeCaller(presets["Ghostly"]),
+          6: keyframeCaller(presets["Rave"]),
+          7: keyframeCaller(presets["Blood"]),
+          8: keyframeCaller(presets["Turbulence"]),
+          9: keyframeCaller(presets["Funhouse"]),
+          0: keyframeCaller(presets["Noise Only"]),
 
-          '-': adjustEach(-0.1),
-          '=': adjustEach(0.1),
-          '<down>': adjustEach(-1),
-          '<up>': adjustEach(1),
-          '<left>': adjustEach(-5),
-          '<right>': adjustEach(5),
+          "-": adjustEach(-0.1),
+          "=": adjustEach(0.1),
+          "<down>": adjustEach(-1),
+          "<up>": adjustEach(1),
+          "<left>": adjustEach(-5),
+          "<right>": adjustEach(5),
 
-          '<escape>': (...rest) => {
+          "<escape>": (...rest) => {
             resetEach(editMap);
             keyframe(...rest);
           },
-          '<caps-lock>': resetEach,
+          "<caps-lock>": resetEach,
 
-          '<space>': () => togglePlay(),
+          "<space>": () => togglePlay(),
 
-          '[': () => scrub(-2000),
-          ']': () => scrub(2000),
-          '<enter>': keyframe,
+          "[": () => scrub(-2000),
+          "]": () => scrub(2000),
+          "<enter>": keyframe,
           // @todo Update this to match the new Player API
-          '<backspace>': () =>
-            player.track.trackAt(timer.track.time)
-              .spliceAt(timer.track.time),
+          "<backspace>": () =>
+            player.track.trackAt(timer.track.time).spliceAt(timer.track.time),
 
-          '\\': keyframeCaller(() => reset()),
+          "\\": keyframeCaller(() => reset()),
           "'": keyframeCaller(() => spawnFlow()),
-          ';': keyframeCaller(() => spawnFastest()),
-          ',': keyframeCaller(() => spawnForm()),
+          ";": keyframeCaller(() => spawnFastest()),
+          ",": keyframeCaller(() => spawnForm()),
 
-          '<shift>': keyframeCaller(() => restart()),
-          '/': keyframeCaller(() => spawnSamples()),
-          '.': keyframeCaller(controls.spawnImageTargets)
+          "<shift>": keyframeCaller(() => restart()),
+          "/": keyframeCaller(() => spawnSamples()),
+          ".": keyframeCaller(controls.spawnImageTargets),
         }
       : {
-          'H': () => toggleShowGUI(),
+          H: () => toggleShowGUI(),
 
-          '1': presets['Flow'],
-          '2': presets['Wings'],
-          '3': presets['Fluid'],
-          '4': presets['Frequencies'],
-          '5': presets['Ghostly'],
-          '6': presets['Rave'],
-          '7': presets['Blood'],
-          '8': presets['Turbulence'],
-          '9': presets['Funhouse'],
-          '0': presets['Noise Only'],
-          '-': presets['Flow Only'],
-          'Q': presets['Folding'],
-          'W': presets['Rorschach'],
-          'E': presets['Starlings'],
-          'R': presets['Sea'],
-          'T': presets['Kelp Forest'],
-          'Y': presets['Tornado Alley'],
-          'U': presets['Pop Tide'],
-          'I': presets['Narcissus Pool'],
-          'O': presets['Minimal'],
-          'P': presets['Pissarides'],
+          1: presets["Flow"],
+          2: presets["Wings"],
+          3: presets["Fluid"],
+          4: presets["Frequencies"],
+          5: presets["Ghostly"],
+          6: presets["Rave"],
+          7: presets["Blood"],
+          8: presets["Turbulence"],
+          9: presets["Funhouse"],
+          0: presets["Noise Only"],
+          "-": presets["Flow Only"],
+          Q: presets["Folding"],
+          W: presets["Rorschach"],
+          E: presets["Starlings"],
+          R: presets["Sea"],
+          T: presets["Kelp Forest"],
+          Y: presets["Tornado Alley"],
+          U: presets["Pop Tide"],
+          I: presets["Narcissus Pool"],
+          O: presets["Minimal"],
+          P: presets["Pissarides"],
 
-          'G': presets['H:G:Flow'],
-          'Z': presets['H:Z:Folding'],
-          'X': presets['H:X:Starlings'],
-          'C': presets['H:C:Kelp Forest'],
-          'V': presets['H:V:Tornado Alley'],
-          'B': presets['H:B:Pop Tide'],
-          'N': presets['H:N:Narcissus Pool'],
-          'M': presets['H:M:Pissarides'],
+          G: presets["H:G:Flow"],
+          Z: presets["H:Z:Folding"],
+          X: presets["H:X:Starlings"],
+          C: presets["H:C:Kelp Forest"],
+          V: presets["H:V:Tornado Alley"],
+          B: presets["H:B:Pop Tide"],
+          N: presets["H:N:Narcissus Pool"],
+          M: presets["H:M:Pissarides"],
 
-          '<space>': () => restart(),
+          "<space>": () => restart(),
 
           "'": () => spawnFlow(),
-          ';': () => spawnFastest(),
-          ',': () => spawnForm(),
+          ";": () => spawnFastest(),
+          ",": () => spawnForm(),
 
-          '<shift>': () => restart(),
-          '/': () => spawnSamples(),
-          '.': () => controls.spawnImageTargets(),
-          '\\': () => clear(),
+          "<shift>": () => restart(),
+          "/": () => spawnSamples(),
+          ".": () => controls.spawnImageTargets(),
+          "\\": () => clear(),
 
-          '`': () => state.autoClearView = !state.autoClearView
-        });
+          "`": () => (state.autoClearView = !state.autoClearView),
+        };
 
-    if(fullscreen) {
-      callMap['F'] = fullscreen.request;
+    if (fullscreen) {
+      callMap["F"] = fullscreen.request;
     }
 
     // @todo Throttle so multiple states can go into one keyframe.
     // @todo Toggle this on or off any time - from GUI flag etc.
-    document.body.addEventListener('keydown', (e) => {
+    document.body.addEventListener(
+      "keydown",
+      (e) => {
         // Control is a special case to assign the current state to
         // a key.
-        const remap = editing['<control>'];
+        const remap = editing["<control>"];
         const key = vkey[e.keyCode];
         const mapped = editMap[key];
         const call = callMap[key];
 
-        if(remap) { remap(key, { ...state }); }
-        else if(mapped && !editing[key]) {
+        if (remap) {
+          remap(key, { ...state });
+        } else if (mapped && !editing[key]) {
           editing[key] = mapped;
           mapped.go && mapped.go(editing, state);
+        } else if (call) {
+          call(editing, state);
         }
-        else if(call) { call(editing, state); }
 
         updateGUI();
 
-        if(mapped || call) {
+        if (mapped || call) {
           e.preventDefault();
           e.stopPropagation();
         }
       },
-      false);
+      false,
+    );
 
-    document.body.addEventListener('keyup',
+    document.body.addEventListener(
+      "keyup",
       (e) => {
         const key = vkey[e.keyCode];
         const mapped = editMap[key];
         const call = callMap[key];
 
-        if(mapped && editing[key]) {
-          (key !== '<control>') && (!editing['<control>']) &&
+        if (mapped && editing[key]) {
+          key !== "<control>" &&
+            !editing["<control>"] &&
             keyframe({ ...state });
 
           // @todo Needed?
@@ -3297,15 +3399,16 @@ export default (canvas, options) => {
           delete editing[key];
         }
 
-        if(mapped || call) {
+        if (mapped || call) {
           e.preventDefault();
           e.stopPropagation();
         }
       },
-      false);
+      false,
+    );
   }
 
-  (''+settings.keyboard !== 'false') && keyMash();
+  "" + settings.keyboard !== "false" && keyMash();
 
   presets[settings.preset] && presets[settings.preset]();
 
@@ -3334,9 +3437,9 @@ export default (canvas, options) => {
     toggleMedia,
     timer,
     geometrySpawner,
-    flowInputs
+    flowInputs,
   };
 
   // Debug
-  return window.tendrils = out;
+  return (window.tendrils = out);
 };
